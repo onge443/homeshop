@@ -105,7 +105,7 @@ app.post('/search1', async (req, res) => {
         const result = await pool.request()
             .input('DI_REF', sql.VarChar, reference) // ใช้ parameter เพื่อป้องกัน SQL Injection
             .query(`
-                SELECT DI_REF, CONVERT(VARCHAR, DI_DATE, 105) as DI_DATE , DI_AMOUNT, SKM_QTY, SKU_CODE, SKU_NAME, SKM_QTY as 'QTY'
+                SELECT DI_REF, CONVERT(VARCHAR,DI_DATE,105) as DI_DATE, DI_AMOUNT, SKM_QTY, SKU_CODE, SKU_NAME, SKM_QTY as 'QTY'
                 FROM DOCINFO, DOCTYPE, SKUMASTER, SKUMOVE 
                 WHERE DI_REF = @DI_REF
             `);
@@ -120,6 +120,50 @@ app.post('/search1', async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
+
+// API สำหรับ Insert ข้อมูลจาก stock
+app.post('/insert-stock-data', async (req, res) => {
+    const { data } = req.body;
+
+    if (!data || !Array.isArray(data)) {
+        return res.status(400).json({ success: false, message: "Invalid data format" });
+    }
+
+    try {
+        let pool = await sql.connect(config);
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        const request = new sql.Request(transaction);
+        for (const [index, item] of data.entries()) {
+            await request
+                .input(`RefNo_${index}`, sql.VarChar, item.RefNo)
+                .input(`Round_${index}`, sql.Int, item.Round)
+                .input(`RefDate${index}`, sql.Date, item.RefDate)
+                .input(`ProductCode_${index}`, sql.VarChar, item.ProductCode)
+                .input(`ProductName_${index}`, sql.VarChar, item.ProductName)
+                .input(`QuantitySold_${index}`, sql.Int, item.QuantitySold)
+                .input(`CheckQTY_${index}`, sql.Int, item.CheckQTY)
+                .input(`CreateBy_${index}`, sql.VarChar, item.CreateBy)
+                .query(`
+                    INSERT INTO Stock (DI_REF, CHECKROUND, DI_DATE, SKU_CODE, SKU_NAME, SKU_QTY, CR_QTY, CREATE_BY, UPDATE_DATE, UPDATE_BY)
+                    VALUES (@RefNo_${index}, @Round_${index}, @RefDate${index}, @ProductCode_${index}, @ProductName_${index}, @QuantitySold_${index}, @CheckQTY_${index}, @CreateBy_${index}, GETDATE(), @CreateBy_${index})
+                `);
+        }
+
+
+        await transaction.commit();
+        res.json({ success: true, message: "Data inserted successfully" });
+    } catch (err) {
+        console.error("Database error:", err);
+        res.status(500).json({ success: false, message: "Failed to insert data" });
+    }
+});
+
+// // เริ่มต้นเซิร์ฟเวอร์
+// app.listen(3000, () => {
+//     console.log("Server is running on http://localhost:3000");
+// });
 
 
 const path = require('path'); // ใช้ path เพื่อจัดการเส้นทางไฟล์

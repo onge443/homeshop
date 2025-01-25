@@ -5,28 +5,29 @@ const html5QrCode = new Html5Qrcode("reader");
 // Function when QR Code scan is successful
 async function onScanSuccess(decodedText) {
     // console.log("Decoded Text:", decodedText); // Debug
-
     try {
-        const response = await fetch('/search1', {
+
+        // ส่งข้อมูลไปยัง API `/search1` เพื่อ Query ข้อมูลและอัปเดตตาราง
+        const searchResponse = await fetch('/search1', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reference: decodedText })
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (!searchResponse.ok) {
+            throw new Error(`HTTP error during search! status: ${searchResponse.status}`);
         }
 
-        const result = await response.json();
-        updateTable(result);
+        const searchResult = await searchResponse.json();
+        updateTable(searchResult);
         document.getElementById('reader').style.display = 'none';
+
     } catch (err) {
-        
+        console.error("Error during scan process:", err);
         document.getElementById('reader').style.display = 'none';
-        alert("Failed to decode QR Code. Please try again.");
+        alert("An error occurred. Please try again.");
     }
 }
-
 // Function when QR Code scan fails
 function onScanFailure(error) {
     console.warn("Scan Error:", error);
@@ -134,15 +135,15 @@ function updateTable(result) {
             // หมายเลขแถว
             tr.insertCell().textContent = index + 1;
 
-            // SKU_CODE
+            // SKU_CODE (productcode)
             tr.insertCell().textContent = row.SKU_CODE;
 
-            // SKU_NAME
+            // SKU_NAME (productname)
             tr.insertCell().textContent = row.SKU_NAME;
 
-             //TOTAL_QTY
-             const QueryQTY = row.QTY*(-1);
-             tr.insertCell().textContent = QueryQTY;
+             //QuantitySold
+             const QuantitySold = row.QTY*(-1);
+             tr.insertCell().textContent = QuantitySold;
 
             //  //จำนวนตรวจจ่าย
             //  tr.insertCell().textContent = row.QTY*(-1);
@@ -155,11 +156,13 @@ function updateTable(result) {
             inputCheckQTY.type = 'number';
             inputCheckQTY.value = 0;
 
-            // ตรวจสอบว่า QueryQTY มีค่าที่เหมาะสมหรือไม่
-            const maxQTY = (QueryQTY && !isNaN(QueryQTY)) ? QueryQTY : 0; // ตรวจสอบว่า QueryQTY เป็นตัวเลขที่ถูกต้องหรือไม่
+            // ตรวจสอบว่า QuantitySold มีค่าที่เหมาะสมหรือไม่
+            const maxCheckQTY = (QuantitySold && !isNaN(QuantitySold)) ? QuantitySold : 0; // ตรวจสอบว่า QuantitySold เป็นตัวเลขที่ถูกต้องหรือไม่
             inputCheckQTY.setAttribute('min', 0); // กำหนด minimum value
-            inputCheckQTY.setAttribute('max', maxQTY); // กำหนด maximum value
+            inputCheckQTY.setAttribute('max', maxCheckQTY); // กำหนด maximum value
             tdCheckQTY.appendChild(inputCheckQTY);
+            
+            // Sub total จำนวนสินค้าคงค้าง
             const tdSubTotal = tr.insertCell();
             const inputSubTotal = document.createElement('input');
             inputSubTotal.type = 'number';
@@ -167,31 +170,44 @@ function updateTable(result) {
             inputSubTotal.setAttribute('class', 'form-control-plaintext');
             inputSubTotal.setAttribute('readonly', 'true');
             inputSubTotal.readOnly = true;
-            inputSubTotal.value = QueryQTY-inputCheckQTY.value;
+            inputSubTotal.value = QuantitySold-inputCheckQTY.value;
             tdSubTotal.appendChild(inputSubTotal);
             
-            // เชื่อมโยงข้อมูลกับ model (data binding)
+            //Event เมื่อมีการแก้ไขใน checkQTY
             inputCheckQTY.addEventListener('input', (event) => {
+
                 inputCheckQTY.value = event.target.value;
+
+                // ตรวจสอบว่า check qty ต้องไม่เกิน quantitySold และไม่ต่ำกว่า 0
                 const value = parseInt(inputCheckQTY.value, 10);
                 // ถ้าค่าต่ำกว่าขีดจำกัด min
                 if (value < 0) {
                     inputCheckQTY.value = 0;
                 }
                 // ถ้าค่ามากกว่าขีดจำกัด max
-                else if (value > maxQTY) {
-                    inputCheckQTY.value = maxQTY;
+                else if (value > maxCheckQTY) {
+                    inputCheckQTY.value = maxCheckQTY;
                 }
-                
-                inputSubTotal.value = QueryQTY-inputCheckQTY.value;
                  // อัปเดต model เมื่อ input เปลี่ยนแปลง
-                console.log('Updated จำนวนตรวจจ่าย:', inputCheckQTY.value);
+                inputSubTotal.value = QuantitySold-inputCheckQTY.value;
+                if(document.getElementById("insertStockButton").hidden === true){
+                    document.getElementById("insertStockButton").hidden = false;
+                }
+
+                //เปิดปุ่มรับทั้งหมดกรณีที่ ค่า subtotal ไม่เท่ากับ 0
+                let inputcheck = event.target.id;
+                let i = inputcheck.replace("CheckQTY","");
+                if(inputSubTotal != 0 && document.getElementById("ReceiveAll"+i).hidden === true){
+                    document.getElementById("ReceiveAll"+i).hidden = false;
+
+                }
+                // console.log('Updated จำนวนตรวจจ่าย:', inputCheckQTY.value);
 
             });
 
-            // เชื่อมโยงข้อมูลกับ model (data binding)
            
-
+           
+            //ปุ่มรับทั้งหมด
             const tdAction = tr.insertCell();
             const button = document.createElement('button');
             button.textContent = 'รับทั้งหมด';
@@ -199,15 +215,28 @@ function updateTable(result) {
             button.setAttribute('id', 'ReceiveAll'+(index + 1));
             
             // เมื่อคลิกปุ่มให้ค่าจากแถวนี้ไปใส่ใน input fields
-            button.addEventListener('click', () => {
-                inputCheckQTY.value = QueryQTY;
+            button.addEventListener('click', (event) => {
+                inputCheckQTY.value = QuantitySold;
                 inputSubTotal.value = 0;
+                
+                // document.getElementById("ReceiveAll").hidden = true;
+
+                if(document.getElementById("insertStockButton").hidden === true){
+                    document.getElementById("insertStockButton").hidden = false;
+                }
+                // ซ่อนปุ่มปัจจุบันที่ถูกคลิก
+                const clickedButton = document.getElementById(event.target.id);
+                if (clickedButton) {
+                    clickedButton.hidden = true;  // ใช้ style.display แทน hidden
+                }
             });
 
             tdAction.appendChild(button);
-             document.getElementById('DI_Ref').value = `${row.DI_REF}`;
-            document.getElementById('DI_CreateDate').value = `${row.DI_DATE}`;
-
+            
+            // แสดงค่า reference
+            document.getElementById('DI_Ref').value = `${row.DI_REF}`;
+            document.getElementById('DI_Date').value = `${row.DI_DATE}`;
+            document.getElementById('DI_Round').value = "1";
             
            
 

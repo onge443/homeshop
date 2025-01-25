@@ -24,9 +24,8 @@
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
-
-   
-
+    <!-- Bootstrap 5 CSS -->
+     <!-- Bootstrap CSS -->
 
 </head>
 
@@ -225,9 +224,9 @@
                                         <input type="text" readonly class="form-control-plaintext" id="DI_Ref">
                                       </div>
                                    
-                                        <label for="DI_ROUND" class="col-sm-1 col-form-label">วันที่ใบกำกับ:</label>
+                                        <label for="DI_Date" class="col-sm-1 col-form-label">วันที่ใบกำกับ:</label>
                                         <div class="col-sm-3">
-                                          <input type="text" readonly class="form-control-plaintext" id="DI_CreateDate">
+                                          <input type="text" readonly class="form-control-plaintext" id="DI_Date">
                                         </div>
                                       
                                         <label for="DI_ROUND" class="col-sm-1 col-form-label">ตรวจจ่ายครั้งที่:</label>
@@ -264,8 +263,168 @@
                             
                             </div>
                             <div class="card-footer text-right">
-                                <button type="button" class="btn btn-success">ยืนยัน</button>
+                                <button type="button" class="btn btn-success" id="insertStockButton" hidden data-toggle="modal" data-target="#confirmInsertModal" >ยืนยัน</button>
+                                
+    
+
+                                <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-printer" viewBox="0 0 16 16">
+                                        <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1"/>
+                                        <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1"/>
+                                      </svg>
+                                    พิมพ์
+                                </button>
                             </div>
+                            <!-- Insert confirm Modal-->
+                            <div class="modal fade" id="confirmInsertModal" tabindex="-1" role="dialog" aria-labelledby="confirmCheckModallabel" aria-hidden="true">
+                                <div class="modal-dialog" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="confirmCheckModallabel">ยืนยันการตรวจจ่าย</h5>
+                                            <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                                                <span aria-hidden="true">×</span>
+                                            </button>
+                                        </div>
+                                        <div class="modal-body">คุณต้องยินยันการตรวจจ่ายสินค้าหรือไม่?</div>
+                                        <div class="modal-footer">
+                                            <button class="btn btn-secondary" type="button" data-dismiss="modal">ยกเลิก</button>
+                                            <button class="btn btn-success" id="confirmToInsert" >ยืนยันข้อมูล</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                        
+                            <script>
+
+                                document.getElementById("insertStockButton").addEventListener("click", function() {
+                                    // แสดง Modal เมื่อผู้ใช้คลิกปุ่ม "ยืนยัน"
+                                    $('#confirmInsertModal').modal('show');
+                                    // $('#confirmInsertModal').modal('dispose');
+                                });
+
+                                document.getElementById("confirmToInsert").addEventListener("click", async function () {
+                                    
+                                    $('#confirmInsertModal').modal('hide'); // ปิด Modal
+                                    $('.modal-backdrop').remove(); // ลบ backdrop ด้วยตัวเอง
+                                    $('body').removeClass('modal-open');
+                                    // var myModal = bootstrap.Modal.getInstance(document.getElementById('confirmInsertModal'));
+                                    // myModal.hide();
+
+                                    const table = document.getElementById("resultTable");
+                                    const RefNo =document.getElementById("DI_Ref").value;
+                                    const RefDate =document.getElementById("DI_Date").value;
+                                    const Round =document.getElementById("DI_Round").value;
+                                    const rows = table.querySelectorAll("tbody tr");
+                                    const data = [];
+
+                                    // ดึงข้อมูลจากแต่ละแถวในตาราง
+                                    rows.forEach((row, index) => {
+                                        const cells = row.querySelectorAll("td");
+                                        const checkQTYInput = row.querySelector(`#CheckQTY${index + 1}`);
+                                        const subtotalInput = row.querySelector(`#Subtotal${index + 1}`);
+
+                                        data.push({
+                                            RefNo: RefNo,
+                                            RefDate: RefDate,
+                                            Round: Round,
+                                            ProductCode: cells[1].textContent.trim(),
+                                            ProductName: cells[2].textContent.trim(),
+                                            QuantitySold: parseInt(cells[3].textContent.trim(), 10),
+                                            CheckQTY: parseInt(checkQTYInput.value, 10) || 0, // ดึงค่าจากช่อง "จำนวนตรวจจ่าย"
+                                            CreateBy: localStorage.getItem('username')
+                                        });
+                                    });
+
+                                    console.log("Data to Insert:", data); // Debug ดูข้อมูลที่ดึงมา
+
+                                    // ส่งข้อมูลไปยัง Backend
+                                    try {
+                                        const response = await fetch('/insert-stock-data', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ data })
+                                        });
+
+                                        const result = await response.json();
+                                        if (result.success) {
+                                            // alert("Data inserted successfully!");
+                                            document.getElementById("insertStockButton").hidden=true;
+                                            document.getElementById("printButton").setAttribute("disabled",false);
+                                            document.getElementById("printButton").hidden = false;
+                                            tabledisable();
+                                            showAlert("บันทีกข้อมูลตรวจจ่ายเรียบร้อย");
+                                        } else {
+                                            alert(`Insert failed: ${result.message}`);
+                                        }
+                                    } catch (err) {
+                                        console.error("Error inserting data:", err);
+                                        alert("Failed to insert data. Please try again.");
+                                    }
+
+                                    
+                                });
+
+                                function tabledisable() {
+                                    const table = document.getElementById("resultTable");
+                                    const rows = table.querySelectorAll("tbody tr");
+
+                                    // ดึงข้อมูลจากแต่ละแถวในตาราง
+                                    rows.forEach((row, index) => {
+                                        // ดึง element จาก id โดยไม่ใช้ # 
+                                        const checkQTY = document.getElementById(`CheckQTY${index + 1}`);
+                                        const subtotal = document.getElementById(`Subtotal${index + 1}`);
+                                        const receiveAll = document.getElementById(`ReceiveAll${index + 1}`);
+
+                                        // ตรวจสอบว่า element มีอยู่ก่อนที่จะใช้ setAttribute
+                                        if (checkQTY) {
+                                            checkQTY.setAttribute("disabled", true);
+                                        }
+                                        if (subtotal) {
+                                            subtotal.setAttribute("disabled", true);
+                                        }
+                                        if (receiveAll) {
+                                            receiveAll.setAttribute("disabled", true);
+                                        }
+                                    });
+                                }
+
+                                function showAlert(text) {
+                                    // สร้าง div สำหรับ Alert
+                                    const alertDiv = document.createElement('div');
+                                    alertDiv.classList.add('alert', 'alert-success', 'd-flex', 'align-items-center');
+                                    alertDiv.setAttribute('role', 'alert');
+
+                                    // สร้าง svg ไอคอน
+                                    const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                                    svgIcon.classList.add('bi', 'flex-shrink-0', 'me-2');
+                                    svgIcon.setAttribute('width', '24');
+                                    svgIcon.setAttribute('height', '24');
+                                    svgIcon.setAttribute('role', 'img');
+                                    svgIcon.setAttribute('aria-label', 'Success:');
+                                    const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+                                    useElement.setAttribute('xlink:href', '#check-circle-fill');
+                                    svgIcon.appendChild(useElement);
+
+                                    // สร้างข้อความใน Alert
+                                    const alertText = document.createElement('div');
+                                    alertText.textContent = text;
+
+                                    // เพิ่มไอคอนและข้อความเข้าไปใน alertDiv
+                                    alertDiv.appendChild(svgIcon);
+                                    alertDiv.appendChild(alertText);
+
+                                    // เพิ่ม alert ลงใน body หรือส่วนที่ต้องการ
+                                    document.body.appendChild(alertDiv);
+
+                                    // ปิด alert หลังจาก 5 วินาที
+                                    setTimeout(() => {
+                                        alertDiv.remove();
+                                    }, 5000);
+                                }                               
+
+                            </script>
                         </div>
                     </div>
                     </div>
@@ -298,8 +457,7 @@
     </a>
 
     <!-- Logout Modal-->
-    <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
-        aria-hidden="true">
+    <div class="modal" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -316,6 +474,9 @@
             </div>
         </div>
     </div>
+
+    
+    
     <script>
         // Event listener for the logout button
         document.getElementById('logoutButton').addEventListener('click', function() {
