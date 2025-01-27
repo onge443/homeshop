@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
     <!-- Bootstrap 5 CSS -->
      <!-- Bootstrap CSS -->
-
+    
 </head>
 
 <body id="page-top">
@@ -266,8 +266,8 @@
                                 <button type="button" class="btn btn-success" id="insertStockButton" hidden data-toggle="modal" data-target="#confirmInsertModal" >ยืนยัน</button>
                                 
     
-
-                                <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden >
+                                <button type="button" class="btn btn-primary" id="printButton">
+                                <!-- <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden > -->
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-printer" viewBox="0 0 16 16">
                                         <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1"/>
                                         <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1"/>
@@ -351,8 +351,8 @@
                                         if (result.success) {
                                             // alert("Data inserted successfully!");
                                             document.getElementById("insertStockButton").hidden=true;
-                                            document.getElementById("printButton").setAttribute("disabled",false);
-                                            document.getElementById("printButton").hidden = false;
+                                            // document.getElementById("printButton").setAttribute("disabled",false);
+                                            document.getElementById("printButton").disabled=false;
                                             tabledisable();
                                             showAlert("บันทีกข้อมูลตรวจจ่ายเรียบร้อย");
                                         } else {
@@ -424,6 +424,84 @@
                                     }, 5000);
                                 }                               
 
+                                document.getElementById("printButton").addEventListener("click", function () {
+                                console.log("Print button clicked!"); // Debug เพื่อดูว่าโค้ดทำงานหรือไม่
+                                const qrtext =  document.getElementById("DI_Ref").value+"-"+document.getElementById("DI_Round").value;
+                              
+                                // const qrContainer = document.createElement("div");
+                                // qrContainer.id = "qrcodeContainer";
+                                // qrContainer.style.display = "flex";
+                                // qrContainer.style.flexWrap = "wrap";
+                                // qrContainer.style.gap = "10px";
+                                // qrContainer.style.marginBottom = "20px";
+                                
+                                
+                                
+                                // สร้าง QR Code สำหรับแต่ละแถว
+                                const qrDiv = document.createElement("div");
+                                qrDiv.style.textAlign = "center";
+
+                                new QRCode(qrDiv, {
+                                    text: qrtext, // รวม DI_Ref และ DI_Round
+                                    width: 128,
+                                    height: 128,
+                                    colorDark: "#000000",
+                                    colorLight: "#ffffff",
+                                    correctLevel: QRCode.CorrectLevel.H
+                                });
+                               
+                                // qrContainer.appendChild(qrDiv); // เพิ่ม QR Code ใน Container
+
+                                // เปิดหน้าต่างสำหรับพิมพ์
+                                const tablestock = document.getElementById("resultTable").outerHTML; // ดึง HTML ของตาราง
+                                // const qrCodeHtml = qrContainer.outerHTML; // ดึง HTML ของ QR Code
+                                
+                                setTimeout(() => {
+                                const qrCanvas = qrDiv.querySelector("canvas");
+                                const qrImageBase64 = qrCanvas?.toDataURL("image/png"); // ดึง QR Code เป็น Base64
+
+                                const qrCodeHtml = `<img src="${qrImageBase64}" alt="QR Code">`;
+
+                                const newWindow = window.open("", "", "width=800,height=600");
+                                newWindow.document.write(`
+                                    <html>
+                                        <head>
+                                            <title>Print Table with QR Code</title>
+                                            <style>
+                                                table {
+                                                    width: 100%;
+                                                    border-collapse: collapse;
+                                                }
+                                                table, th, td {
+                                                    border: 1px solid black;
+                                                }
+                                                th, td {
+                                                    padding: 8px;
+                                                    text-align: left;
+                                                }
+                                                #qrcodeContainer {
+                                                    text-align: center;
+                                                    margin-bottom: 20px;
+                                                }
+                                            </style>
+                                        </head>
+                                        <body>
+                                            <h1>QR Code</h1>
+                                            ${qrCodeHtml}
+                                            <h1>Table</h1>
+                                            ${tablestock}
+                                        </body>
+                                        </html>
+                                `);
+                                newWindow.document.close();
+                                newWindow.print();
+                                newWindow.close();
+                            }, 1000);
+                                // newWindow.document.close();
+                                // newWindow.print();
+                                // newWindow.close();
+                                
+                            });
                             </script>
                         </div>
                     </div>
@@ -486,7 +564,8 @@
             window.location.href = '/'; 
         });
     </script>
-
+    <!-- โหลดไลบรารี QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- Bootstrap core JavaScript-->
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
