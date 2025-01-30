@@ -443,19 +443,60 @@
 
                                 new QRCode(qrDiv, {
                                     text: qrtext, // รวม DI_Ref และ DI_Round
-                                    width: 128,
-                                    height: 128,
+                                    width: 50,
+                                    height: 50,
                                     colorDark: "#000000",
                                     colorLight: "#ffffff",
                                     correctLevel: QRCode.CorrectLevel.H
                                 });
                                
                                 // qrContainer.appendChild(qrDiv); // เพิ่ม QR Code ใน Container
+                                // ดึงข้อมูลจากตาราง
+                                const table = document.getElementById("resultTable");
+                                const rows = table.querySelectorAll("tbody tr");
+                                let updatedTableHtml = `
+                                    <table border="1" style="width: 100%; border-collapse: collapse;">
+                                        <thead>
+                                            <tr>
+                                                <th>ลำดับ</th>
+                                                <th>รหัสสินค้า</th>
+                                                <th>ชื่อสินค้า</th>
+                                                <th>จำนวนขาย</th>
+                                                <th>จำนวนตรวจจ่าย</th>
+                                                <th>จำนวนคงเหลือ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                `;
 
+                                rows.forEach((row, index) => {
+                                    const cells = row.querySelectorAll("td");
+                                    const inputCQ = row.querySelector(`#CheckQTY${index + 1}`);  // ดึง <input> ในแถวปัจจุบัน
+                                    const checkQTY = inputCQ ? inputCQ.value:"0"; // ถ้าพบ <input> ให้ดึงค่า .value
+
+                                    const inputTotal = row.querySelector(`#Subtotal${index + 1}`);  // ดึง <input> ในแถวปัจจุบัน
+                                    const TotalQTY = inputTotal ? inputTotal.value:"0"; // ถ้าพบ <input> ให้ดึงค่า .value
+                                   
+                                    
+                                    updatedTableHtml += `
+                                        <tr>
+                                            <td>${cells[0].textContent}</td>
+                                            <td>${cells[1].textContent}</td>
+                                            <td>${cells[2].textContent}</td>
+                                            <td>${cells[3].textContent}</td>
+                                            <td>${checkQTY}</td>
+                                            <td>${TotalQTY}</td>
+                                        </tr>
+                                    `;
+                                    
+                                });
+
+                                updatedTableHtml += `</tbody></table>`;
                                 // เปิดหน้าต่างสำหรับพิมพ์
-                                const tablestock = document.getElementById("resultTable").outerHTML; // ดึง HTML ของตาราง
-                                // const qrCodeHtml = qrContainer.outerHTML; // ดึง HTML ของ QR Code
                                 
+                                const tablestock = updatedTableHtml; // ดึง HTML ของตาราง
+                                
+                               
                                 setTimeout(() => {
                                 const qrCanvas = qrDiv.querySelector("canvas");
                                 const qrImageBase64 = qrCanvas?.toDataURL("image/png"); // ดึง QR Code เป็น Base64
@@ -466,40 +507,90 @@
                                 newWindow.document.write(`
                                     <html>
                                         <head>
-                                            <title>Print Table with QR Code</title>
+                                            <meta charset="UTF-8">
+                                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                            <title>Report Summary</title>
+                                             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+                                            
+    
                                             <style>
-                                                table {
+                                                body {
+                                                    font-family: Arial, sans-serif;
+                                                    padding: 20px;
+                                                    background-color: #f8f9fa;
+                                                }
+
+                                                .report-container {
+                                                    
+                                                    display: flex; /* ใช้ Flexbox */
+                                                    justify-content: space-between; /* จัดให้ตารางซ้าย QR Code ขวา */
+                                                    align-items: flex-start;
+                                                }
+
+                                                .report-content {
+                                                    flex: 1; /* ให้ตารางยืดเต็มพื้นที่ด้านซ้าย */
+                                                }
+
+                                                .qr-container {
+                                                    flex: 0 0 150px; /* กำหนดขนาด QR Code */
+                                                    text-align: center;
+                                                    padding-left: 20px;
+                                                }
+                                                
+                                                .table-container {
+                                                    width: 100%;
+                                                    max-width: none; /* ลบข้อจำกัดความกว้าง */
+                                                    margin: auto;
+                                                }
+
+                                                 table {
                                                     width: 100%;
                                                     border-collapse: collapse;
+                                                    margin-top: 20px;
                                                 }
+
                                                 table, th, td {
                                                     border: 1px solid black;
                                                 }
+
                                                 th, td {
-                                                    padding: 8px;
+                                                    padding: 10px;
                                                     text-align: left;
                                                 }
-                                                #qrcodeContainer {
+
+                                                .header {
                                                     text-align: center;
                                                     margin-bottom: 20px;
                                                 }
+
                                             </style>
                                         </head>
                                         <body>
-                                            <h1>QR Code</h1>
+
+                                        <div class="container report-container">
+                                            <div class="report-content">
+                                                <div class="header">
+                                                    <h2>ใบจำหน่ายสินค้า</h2>
+                                                </div>
+                                            
+                                            </div>
+                                            <div class="qr-container">
                                             ${qrCodeHtml}
-                                            <h1>Table</h1>
-                                            ${tablestock}
-                                        </body>
-                                        </html>
-                                `);
+                                            </div>
+                                            
+                                        </div>
+                                        <div class="container">
+                                            <div class="table-container">
+                                                ${tablestock}
+                                            </div> 
+                                        </div>
+                                            </body>
+                                        </html>`);
                                 newWindow.document.close();
                                 newWindow.print();
                                 newWindow.close();
                             }, 1000);
-                                // newWindow.document.close();
-                                // newWindow.print();
-                                // newWindow.close();
+                                
                                 
                             });
                             </script>

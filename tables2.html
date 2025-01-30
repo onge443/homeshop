@@ -10,7 +10,8 @@
     <meta name="author" content="">
 
     <title>ใบจัดเตรียม</title>
-
+    <!-- เพิ่ม script สำหรับ Dropdown -->
+    <script src="js/dropdown.js"></script>
     <!-- Custom fonts for this template -->
     <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
     <link
@@ -308,6 +309,12 @@
 
                     <!-- Page Heading -->
                     <h1 class="h3 mb-2 text-gray-800">ใบจัดเตรียม</h1>
+                    <!-- เพิ่ม Dropdown ตรงนี้-->
+                     <div class="mb4">
+                        <select id="productDropdown" class="form-control">
+                            <option value="">เลือกประเภทสินค้า</option>
+                        </select>
+                     </div>
                     <p class="mb-4">DataTables is a third party plugin that is used to generate the demo table below.
                         For more information about DataTables, please visit the <a target="_blank"
                             href="https://datatables.net">official DataTables documentation</a>.</p>
@@ -323,6 +330,7 @@
                                     <thead>
                                         <tr>
                                             <th>ลำดับ</th>
+                                            <th>เลขที่บิล</th>
                                             <th>รหัสสินค้า</th>
                                             <th>ชื่อสินค้า</th>
                                             <th>จำนวนขาย</th>
@@ -331,78 +339,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr>
-                                            <td>1</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>2</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>3</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>4</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>5</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>6</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>7</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>8</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
-                                        <tr>
-                                            <td>9</td>
-                                            <td>11223334</td>
-                                            <td>Edinburgh</td>
-                                            <td>12</td>
-                                            <td><input type="text" placeholder="10"></td>
-                                            <td></td>
-                                        </tr>
+                                        
                                         
                                     </tbody>
                                 </table>
@@ -482,6 +419,7 @@
 
     <!-- Page level custom scripts -->
     <script src="js/demo/datatables-demo.js"></script>
+
 
 </body>
 

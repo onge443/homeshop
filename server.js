@@ -93,6 +93,40 @@ app.post('/login', async (req, res) => {
     }
 });
 
+app.get('/api/dropdown-data', async (req, res) => {
+    try {
+      const pool = await sql.connect(config);
+      const result = await pool.request()
+        .query('SELECT ICCAT_KEY, ICCAT_CODE, ICCAT_NAME FROM ICCAT'); // เปลี่ยนชื่อตารางตามจริง
+      
+      res.json({ success: true, data: result.recordset });
+    } catch (error) {
+      console.error('Database error:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  });
+
+// API สำหรับดึงข้อมูลสินค้าตามประเภท (ICCAT_KEY)
+ app.post('/api/products-by-category', async (req, res) => {
+     const { categoryKey } = req.body;
+  
+     try {
+       const pool = await sql.connect(config);
+       const result = await pool.request()
+         .input('ICCAT_KEY', sql.Int, categoryKey)
+         .query(`
+           SELECT DI_REF, ICCAT_KEY, ICCAT_CODE, ICCAT_NAME, SKM_QTY
+           FROM DOCINFO, SKUMOVE, ICCAT 
+           WHERE ICCAT_KEY = @ICCAT_KEY
+         `);
+  
+       res.json({ success: true, data: result.recordset });
+     } catch (error) {
+       console.error('Database error:', error);
+       res.status(500).json({ success: false, message: 'Server error' });
+     }
+   });
+
 app.post('/search1', async (req, res) => {
     const { reference } = req.body;
 
