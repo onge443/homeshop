@@ -10,8 +10,7 @@
     <meta name="author" content="">
 
     <title>ใบจัดเตรียม</title>
-    <!-- เพิ่ม script สำหรับ Dropdown -->
-    <script src="js/dropdown.js"></script>
+    
     <!-- Custom fonts for this template -->
     <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
     <link
@@ -28,6 +27,8 @@
   
 
     </script>
+    <!-- ลิงก์ไฟล์ CSS ใหม่ -->
+    <link href="css/custom.css" rel="stylesheet">
 
 </head>
 
@@ -308,34 +309,33 @@
                 <div class="container-fluid">
 
                     <!-- Page Heading -->
-                    <h1 class="h3 mb-2 text-gray-800">ใบจัดเตรียม</h1>
+                    <h1 class="h3 mb-2 text-gray-800">ประเภทสินค้า</h1>
                     <!-- เพิ่ม Dropdown ตรงนี้-->
                      <div class="mb4">
                         <select id="productDropdown" class="form-control">
                             <option value="">เลือกประเภทสินค้า</option>
                         </select>
                      </div>
-                    <p class="mb-4">DataTables is a third party plugin that is used to generate the demo table below.
+                    <!-- <p class="mb-4">DataTables is a third party plugin that is used to generate the demo table below.
                         For more information about DataTables, please visit the <a target="_blank"
-                            href="https://datatables.net">official DataTables documentation</a>.</p>
+                            href="https://datatables.net">official DataTables documentation</a>.</p> -->
 
                     <!-- DataTales Example -->
-                    <div class="card shadow mb-4">
+                    <div class="card shadow mb-4" id="dataTableContainer" style="display: none;">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">DataTables Example</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">ตารางจัดเตรียมสินค้า</h6>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
-                                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <table class="table table-bordered" id="resultTable" style="width: 100%; min-width: 800px;" 
+                                cellspacing="0">
                                     <thead>
                                         <tr>
                                             <th>ลำดับ</th>
                                             <th>เลขที่บิล</th>
                                             <th>รหัสสินค้า</th>
                                             <th>ชื่อสินค้า</th>
-                                            <th>จำนวนขาย</th>
                                             <th>จำนวนจัดเตรียม</th>
-                                            <th>จำนวนคงเหลือ</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -419,7 +419,8 @@
 
     <!-- Page level custom scripts -->
     <script src="js/demo/datatables-demo.js"></script>
-
+    <!-- เพิ่ม script สำหรับ Dropdown -->
+    <script src="js/dropdown.js" defer></script>
 
 </body>
 

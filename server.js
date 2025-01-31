@@ -98,7 +98,11 @@ app.get('/api/dropdown-data', async (req, res) => {
       const pool = await sql.connect(config);
       const result = await pool.request()
         .query('SELECT ICCAT_KEY, ICCAT_CODE, ICCAT_NAME FROM ICCAT'); // เปลี่ยนชื่อตารางตามจริง
-      
+        
+    if (!result.recordset || result.recordset.length === 0) {
+        return res.json({ success: false, message: "ไม่มีข้อมูลประเภทสินค้า" });
+    }
+
       res.json({ success: true, data: result.recordset });
     } catch (error) {
       console.error('Database error:', error);
@@ -109,23 +113,31 @@ app.get('/api/dropdown-data', async (req, res) => {
 // API สำหรับดึงข้อมูลสินค้าตามประเภท (ICCAT_KEY)
  app.post('/api/products-by-category', async (req, res) => {
      const { categoryKey } = req.body;
-  
-     try {
-       const pool = await sql.connect(config);
-       const result = await pool.request()
-         .input('ICCAT_KEY', sql.Int, categoryKey)
-         .query(`
-           SELECT DI_REF, ICCAT_KEY, ICCAT_CODE, ICCAT_NAME, SKM_QTY
-           FROM DOCINFO, SKUMOVE, ICCAT 
-           WHERE ICCAT_KEY = @ICCAT_KEY
-         `);
-  
-       res.json({ success: true, data: result.recordset });
-     } catch (error) {
-       console.error('Database error:', error);
-       res.status(500).json({ success: false, message: 'Server error' });
-     }
-   });
+     console.log("CategoryKey Received:", categoryKey); // ✅ Debug
+     if (!categoryKey) {
+        return res.status(400).json({ success: false, message: "Missing categoryKey" });
+    }
+
+    try {
+        const pool = await sql.connect(config);
+        const request = pool.request();
+        request.input('CategoryID', sql.Int, categoryKey);
+
+        const result = await request.query(`
+            SELECT d.DI_REF, i.ICCAT_KEY, i.ICCAT_CODE, i.ICCAT_NAME, s.SKM_QTY
+            FROM DOCINFO d
+            INNER JOIN SKUMOVE s ON d.DI_KEY = s.SKM_DI
+            INNER JOIN ICCAT i ON d.DI_DT = i.ICCAT_KEY
+            WHERE i.ICCAT_KEY = @CategoryID
+            `);
+
+        console.log("API Response Data:", result.recordset); // ✅ Debug
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error("Database error:", error);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
 
 app.post('/search1', async (req, res) => {
     const { reference } = req.body;
