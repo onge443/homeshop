@@ -85,7 +85,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         "url": "//cdn.datatables.net/plug-ins/1.10.20/i18n/Thai.json"
       }
     });
-  
+    // เพิ่ม Event Listener ให้ปุ่ม
+    $('#resultTable').on('click', '.btn-confirm', function() {
+      const rowData = dataTable.row($(this).parents('tr')).data();
+      saveConfirmedData(rowData);
+    });
     // 4. เพิ่มข้อมูล
     products.forEach((item, index) => {
       dataTable.row.add([
@@ -93,7 +97,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         item.DI_REF,
         item.ICCAT_CODE,
         item.ICCAT_NAME,
-        item.SKM_QTY
+        item.SKM_QTY,
+        `<button class="btn-confirm">จัดเตรียมครบ</button>`
       ]).draw(false);
     });
   
