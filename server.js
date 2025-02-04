@@ -139,6 +139,42 @@ app.get('/api/dropdown-data', async (req, res) => {
     }
 });
 
+app.post('/api/save-preparation', async (req, res) => {
+    const { data, username } = req.body;
+
+    if (!data || !Array.isArray(data) || !username) {
+        return res.status(400).json({ success: false, message: "Invalid data format or missing username" });
+    }
+
+    try {
+        let pool = await sql.connect(config);
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        const request = new sql.Request(transaction);
+        for (const item of data) {
+            await request
+                .input('DI_REF', sql.VarChar, item.DI_REF)
+                .input('ICCAT_CODE', sql.VarChar, item.ICCAT_CODE)
+                .input('ICCAT_NAME', sql.VarChar, item.ICCAT_NAME)
+                .input('SKM_QTY', sql.Int,Math.abs(item.SKM_QTY)) // ✅ ป้องกันค่าติดลบ
+                .input('Status', sql.NVarChar, item.Status || 'กำลังจัดเตรียม') // เพิ่มสถานะ
+                .input('PreparedBy', sql.VarChar, username)
+                .input('Timestamp', sql.DateTime, new Date())
+                .query(`
+                    INSERT INTO PreparationRecords (DI_REF, ICCAT_CODE, ICCAT_NAME, SKM_QTY, Status, PreparedBy, Timestamp)
+                    VALUES (@DI_REF, @ICCAT_CODE, @ICCAT_NAME, @SKM_QTY, @Status, @PreparedBy, @Timestamp)
+                `);
+        }
+
+        await transaction.commit();
+        res.json({ success: true, message: "Data saved successfully" });
+    } catch (err) {
+        console.error("Database error:", err);
+        res.status(500).json({ success: false, message: "Failed to save data" });
+    }
+});
+
 app.post('/search1', async (req, res) => {
     const { reference } = req.body;
 

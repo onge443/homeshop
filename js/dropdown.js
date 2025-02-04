@@ -73,37 +73,93 @@ document.addEventListener('DOMContentLoaded', async () => {
       $('#resultTable').DataTable().destroy();
     }
   
-    // 2. ล้างข้อมูลในตาราง
-    const dataTableBody = document.querySelector('#resultTable tbody');
-    dataTableBody.innerHTML = '';
-  
-    // 3. สร้าง DataTable ใหม่
-    const dataTable = $('#resultTable').DataTable({
-      "autoWidth": false, // ปิดการขยายอัตโนมัติ
-      "scrollX": true, // เปิดแถบเลื่อนแนวนอนหากจำเป็น
-      "language": {
-        "url": "//cdn.datatables.net/plug-ins/1.10.20/i18n/Thai.json"
+    // 2. สร้าง DataTable ใหม่ พร้อมคอลัมน์สถานะ
+  const dataTable = $('#resultTable').DataTable({
+    "autoWidth": false,
+    "scrollX": true,
+    "language": {
+      "url": "//cdn.datatables.net/plug-ins/1.10.20/i18n/Thai.json"
+    },
+    "columns": [ // กำหนดคอลัมน์ทั้งหมด
+      { title: "ลำดับ" },
+      { title: "เลขที่บิล" },
+      { title: "รหัสสินค้า" },
+      { title: "ชื่อสินค้า" },
+      { title: "จำนวนจัดเตรียม" },
+      { title: "สถานะ" }, // เพิ่มคอลัมน์สถานะ
+      { title: "จัดเตรียมเรียบร้อย" } // คอลัมน์ปุ่ม OK
+    ]
+  });
+
+    // 3. เพิ่มข้อมูลพร้อมสถานะเริ่มต้น
+  products.forEach((item, index) => {
+    dataTable.row.add([
+      index + 1,
+      item.DI_REF,
+      item.ICCAT_CODE,
+      item.ICCAT_NAME,
+      Math.abs(item.SKM_QTY), // ✅ แสดงค่าบวกเสมอ
+      '<span class="status-pending">กำลังจัดเตรียม</span>', // สถานะเริ่มต้น
+      '<button class="btn-confirm">OK</button>' // ปุ่ม OK
+    ]).draw(false);
+  });
+    // 4. Event เมื่อคลิกปุ่ม OK
+  $('#resultTable').on('click', '.btn-confirm', async function () {
+    const tr = $(this).closest('tr');
+    const rowData = dataTable.row(tr).data();
+    const username = localStorage.getItem('username') || 'unknown_user';
+    const payload = [{
+      DI_REF: rowData[1],
+      ICCAT_CODE: rowData[2],
+      ICCAT_NAME: rowData[3],
+      SKM_QTY: rowData[4],
+      Status: 'จัดเตรียมสำเร็จ' // บันทึกสถานะลงฐานข้อมูล
+    }];
+    try {
+      const response = await fetch('/api/save-preparation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: payload, username })
+      });
+      const result = await response.json();
+      if (result.success) {
+        alert("บันทึกข้อมูลสำเร็จ!");
+        rowData[5] = '<span class="status-completed">จัดเตรียมสำเร็จ</span>';
+        dataTable.row(tr).data(rowData).draw();
+        $(this).prop('disabled', true).text('OK แล้ว');
+      } else {
+        alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
       }
-    });
-    // เพิ่ม Event Listener ให้ปุ่ม
-    $('#resultTable').on('click', '.btn-confirm', function() {
-      const rowData = dataTable.row($(this).parents('tr')).data();
-      saveConfirmedData(rowData);
-    });
-    // 4. เพิ่มข้อมูล
-    products.forEach((item, index) => {
-      dataTable.row.add([
-        index + 1,
-        item.DI_REF,
-        item.ICCAT_CODE,
-        item.ICCAT_NAME,
-        item.SKM_QTY,
-        `<button class="btn-confirm">จัดเตรียมครบ</button>`
-      ]).draw(false);
-    });
-  
-    // 5. แสดงตารางผ่าน container
-    document.getElementById("dataTableContainer").style.display = 'block';
+    } catch (error) {
+      console.error("Error saving data:", error);
+      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+    }
+    // อัปเดตสถานะ
+    rowData[5] = '<span class="status-completed">จัดเตรียมสำเร็จ</span>';
+    dataTable.row(tr).data(rowData).draw();
+
+    // ปิดการใช้งานปุ่ม
+    $(this).prop('disabled', true).text('OK แล้ว');
+    // ตรวจสอบสถานะทั้งหมด
+    checkAllCompleted();
+  });
+  // 5. แสดงตาราง
+  document.getElementById("dataTableContainer").style.display = 'block';
+}
+// ฟังก์ชันตรวจสอบสถานะทั้งหมด
+function checkAllCompleted() {
+  const allRows = $('#resultTable').DataTable().rows().data();
+  let isAllCompleted = true;
+
+  allRows.each(function(row) {
+    if (row[5].includes('status-pending')) {
+      isAllCompleted = false;
+      return false; // หยุดลูปหากพบรายการที่ยังไม่เสร็จ
+    }
+  });
+
+  // อัปเดตปุ่มจัดเตรียมครบทุกชิ้น
+  $('#btnComplete').prop('disabled', !isAllCompleted);
 
   console.log("✅ Table Updated with DataTables!");
 
