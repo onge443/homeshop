@@ -129,6 +129,14 @@ function updateTable(result) {
 
     if (result.success) {
         result.data.forEach((row, index) => {
+            // แสดงค่า reference
+            const round = row.LATEST_ROUND+1;
+            if(index == 0){
+                document.getElementById('DI_Ref').value = `${row.DI_REF}`;
+                document.getElementById('DI_Date').value = `${row.DI_DATE}`;
+                document.getElementById('DI_Round').value = round;
+            }
+            
             // สร้างแถวใหม่ในตาราง
             const tr = tableBody.insertRow();
 
@@ -141,13 +149,25 @@ function updateTable(result) {
             // SKU_NAME (productname)
             tr.insertCell().textContent = row.SKU_NAME;
 
+            //SKU_WL (ตำแหน่งเก็บ)
+            const location = row.SKU_WL;
+            tr.insertCell().textContent = location;
+
              //QuantitySold
-             const QuantitySold = row.QTY*(-1);
-             tr.insertCell().textContent = QuantitySold;
+            const QuantitySold = row.QTY;
+            tr.insertCell().textContent = QuantitySold;
 
-            //  //จำนวนตรวจจ่าย
-            //  tr.insertCell().textContent = row.QTY*(-1);
+            //จำนวนที่จ่ายไปแล้ว
+            const TotalCRQTY = row.TOTAL_CR_QTY;
+            tr.insertCell().textContent = TotalCRQTY;
 
+            //จำนวนที่จัดเตรียม
+            const LatestPPQTY = row.LATEST_PREPARE_QTY;
+            tr.insertCell().textContent = LatestPPQTY;
+
+           
+           //จำนวนทีคงเหลือ
+            const RemainQTY = row.REMAIN_QTY;
 
             // จำนวนตรวจจ่าย (แสดงเป็น input)
             const tdCheckQTY = tr.insertCell();
@@ -156,8 +176,23 @@ function updateTable(result) {
             inputCheckQTY.type = 'number';
             inputCheckQTY.value = 0;
 
-            // ตรวจสอบว่า QuantitySold มีค่าที่เหมาะสมหรือไม่
-            const maxCheckQTY = (QuantitySold && !isNaN(QuantitySold)) ? QuantitySold : 0; // ตรวจสอบว่า QuantitySold เป็นตัวเลขที่ถูกต้องหรือไม่
+           // กำหนด maxCheckQTY ตามค่า RemainQTY หรือ QuantitySold
+            let maxCheckQTY = 0; // กำหนดค่าเริ่มต้น
+            if (round <= 1 ) {
+                maxCheckQTY = (QuantitySold && !isNaN(QuantitySold)) ? QuantitySold : 0; // ตรวจสอบ QuantitySold ว่ามีค่าหรือไม่
+                
+            } else {
+                if(RemainQTY>0 && RemainQTY < QuantitySold ){ // QuantitySold =5 and remain = 2
+                    maxCheckQTY = (RemainQTY && !isNaN(RemainQTY)) ? RemainQTY : 0; // ตรวจสอบ RemainQTY ว่ามีค่าหรือไม่
+                }else if(RemainQTY == 0){
+                    maxCheckQTY = 0;
+                }
+                else { // QuantitySold =5 and remain = 0
+                    maxCheckQTY = (QuantitySold && !isNaN(QuantitySold)) ? QuantitySold : 0; // ตรวจสอบ QuantitySold ว่ามีค่าหรือไม่
+                }
+            }
+            
+           
             inputCheckQTY.setAttribute('min', 0); // กำหนด minimum value
             inputCheckQTY.setAttribute('max', maxCheckQTY); // กำหนด maximum value
             tdCheckQTY.appendChild(inputCheckQTY);
@@ -170,7 +205,8 @@ function updateTable(result) {
             inputSubTotal.setAttribute('class', 'form-control-plaintext');
             inputSubTotal.setAttribute('readonly', 'true');
             inputSubTotal.readOnly = true;
-            inputSubTotal.value = QuantitySold-inputCheckQTY.value;
+            // inputSubTotal.value = QuantitySold-inputCheckQTY.value;
+            inputSubTotal.value = maxCheckQTY-inputCheckQTY.value;
             tdSubTotal.appendChild(inputSubTotal);
             
             //Event เมื่อมีการแก้ไขใน checkQTY
@@ -189,7 +225,7 @@ function updateTable(result) {
                     inputCheckQTY.value = maxCheckQTY;
                 }
                  // อัปเดต model เมื่อ input เปลี่ยนแปลง
-                inputSubTotal.value = QuantitySold-inputCheckQTY.value;
+                inputSubTotal.value = maxCheckQTY-inputCheckQTY.value;
                 if(document.getElementById("insertStockButton").hidden === true){
                     document.getElementById("insertStockButton").hidden = false;
                 }
@@ -214,9 +250,20 @@ function updateTable(result) {
             button.setAttribute('class', 'btn btn-primary');
             button.setAttribute('id', 'ReceiveAll'+(index + 1));
             
+            const tdID = tr.insertCell();
+            const inputID = document.createElement('input');
+            inputID.type = 'number';
+            inputID.setAttribute('ID', "ident"+(index+1));
+            inputID.setAttribute('readonly', 'true');
+            inputID.value = row.IDENT;
+            inputID.style.display = 'none';
+            tdID.appendChild(inputID);
+            tdID.style.display='none';
+
+            
             // เมื่อคลิกปุ่มให้ค่าจากแถวนี้ไปใส่ใน input fields
             button.addEventListener('click', (event) => {
-                inputCheckQTY.value = QuantitySold;
+                inputCheckQTY.value = maxCheckQTY;
                 inputSubTotal.value = 0;
                 
                 // document.getElementById("ReceiveAll").hidden = true;
@@ -232,11 +279,14 @@ function updateTable(result) {
             });
 
             tdAction.appendChild(button);
+            if(RemainQTY==0){
+                document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
+                document.getElementById("CheckQTY"+(index + 1)).disabled = true;
+            }else if (location == "Warehouse" && LatestPPQTY == 0 && RemainQTY!=0){
+                document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
+                document.getElementById("CheckQTY"+(index + 1)).disabled = true;
+            }
             
-            // แสดงค่า reference
-            document.getElementById('DI_Ref').value = `${row.DI_REF}`;
-            document.getElementById('DI_Date').value = `${row.DI_DATE}`;
-            document.getElementById('DI_Round').value = "1";
             
            
 

@@ -2,17 +2,17 @@
     display: none;
 }
 /* ตั้งค่าตารางให้เต็มพื้นที่ */
-#resultTable {
+#resultstock {
     width: 100% !important;
-    min-width: 800px; /* กำหนดความกว้างขั้นต่ำ */
+    /* min-width: 800px; กำหนดความกว้างขั้นต่ำ */
   }
   
   /* ปรับขนาดคอลัมน์ให้พอดีกับเนื้อหา */
-  #resultTable th:nth-child(1) { width: 80px; } /* ลำดับ */
-  #resultTable th:nth-child(2) { width: 150px; } /* เลขที่บิล */
-  #resultTable th:nth-child(3) { width: 120px; } /* รหัสสินค้า */
-  #resultTable th:nth-child(4) { min-width: 200px; } /* ชื่อสินค้า */
-  #resultTable th:nth-child(5) { width: 150px; } /* จำนวนจัดเตรียม */
+  #resultstock th:nth-child(1) { width: 80px; } /* ลำดับ */
+  #resultstock th:nth-child(2) { width: 150px; } /* เลขที่บิล */
+  #resultstock th:nth-child(3) { width: 120px; } /* รหัสสินค้า */
+  #resultstock th:nth-child(4) { min-width: 200px; } /* ชื่อสินค้า */
+  #resultstock th:nth-child(5) { width: 150px; } /* จำนวนจัดเตรียม */
   /* ปรับสไตล์ปุ่ม */
 .btn-confirm {
     background-color: #28a745;

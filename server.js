@@ -93,87 +93,164 @@ app.post('/login', async (req, res) => {
     }
 });
 
-app.get('/api/dropdown-data', async (req, res) => {
+app.get('/api/product-categories', async (req, res) => {
     try {
-      const pool = await sql.connect(config);
-      const result = await pool.request()
-        .query('SELECT ICCAT_KEY, ICCAT_CODE, ICCAT_NAME FROM ICCAT'); // เปลี่ยนชื่อตารางตามจริง
-        
-    if (!result.recordset || result.recordset.length === 0) {
-        return res.json({ success: false, message: "ไม่มีข้อมูลประเภทสินค้า" });
-    }
+        const pool = await sql.connect(config);
+        const result = await pool.request().query(`
+            SELECT ICCAT_KEY, ICCAT_NAME FROM ICCAT ORDER BY ICCAT_NAME
+        `);
 
-      res.json({ success: true, data: result.recordset });
+        res.json({ success: true, data: result.recordset });
     } catch (error) {
-      console.error('Database error:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
+        console.error("Error fetching product categories:", error);
+        res.status(500).json({ success: false, message: "Database error" });
     }
-  });
+});
 
-// API สำหรับดึงข้อมูลสินค้าตามประเภท (ICCAT_KEY)
- app.post('/api/products-by-category', async (req, res) => {
-     const { categoryKey } = req.body;
-     console.log("CategoryKey Received:", categoryKey); // ✅ Debug
-     if (!categoryKey) {
-        return res.status(400).json({ success: false, message: "Missing categoryKey" });
-    }
+app.post('/api/search-preparation', async (req, res) => {
+    const { category, status, documentId } = req.body;
 
     try {
         const pool = await sql.connect(config);
-        const request = pool.request();
-        request.input('CategoryID', sql.Int, categoryKey);
+        const request = pool.request(); // ✅ ต้องสร้าง request ก่อนใช้
 
-        const result = await request.query(`
-            SELECT d.DI_REF, i.ICCAT_KEY, i.ICCAT_CODE, i.ICCAT_NAME, s.SKM_QTY
-            FROM DOCINFO d
-            INNER JOIN SKUMOVE s ON d.DI_KEY = s.SKM_DI
-            INNER JOIN ICCAT i ON d.DI_DT = i.ICCAT_KEY
-            WHERE i.ICCAT_KEY = @CategoryID
-            `);
+        let query = `
+            SELECT 
+                DI_REF AS DocumentID, 
+                SKU_WL AS StorageLocation, 
+                ICCAT_KEY AS ProductCategory, 
+                SKU_CODE AS ProductCode, 
+                SKU_NAME AS ProductName, 
+                TOTAL_SKU_QTY AS SoldQty, 
+                Total_CR_QTY AS ReceivedQty, 
+                REMAINING_QTY AS PendingQty, 
+                LATEST_PREPARE_QTY, 
+                STATUS AS Status
+            FROM stock_summary
+            WHERE SKU_WL IN ('Warehouse', 'Store/Warehouse') 
+        `;
 
-        console.log("API Response Data:", result.recordset); // ✅ Debug
+        if (category && category !== "all") {
+            query += ` AND ICCAT_KEY LIKE @Category`; // ✅ เปลี่ยนเป็น ICCAT_KEY
+            request.input('Category', sql.NVarChar, `%${category}%`);
+        }
+        if (status && status !== "all") {
+            query += ` AND STATUS LIKE @Status`; // ✅ เปลี่ยนเป็น STATUS
+            request.input('Status', sql.NVarChar, `%${status}%`);
+        }
+        if (documentId) {
+            query += ` AND DI_REF LIKE @DocumentID`; // ✅ เปลี่ยนเป็น DI_REF
+            request.input('DocumentID', sql.NVarChar, `%${documentId}%`);
+        }
+
+        query += `
+            ORDER BY 
+                CASE WHEN STATUS = 'รอการจัดเตรียม' THEN 1 ELSE 2 END, 
+                CREATE_DATE ASC
+        `;
+
+        console.log("Executing Query:", query); // ✅ Debug Query
+        const result = await request.query(query);
+        console.log("Query Result:", result.recordset); // ✅ Debug Response
+
+        if (!result.recordset || result.recordset.length === 0) {
+            return res.json({ success: true, data: [] }); // ✅ ป้องกัน undefined
+        }
+
+        res.json({ success: true, data: result.recordset });
+
+    } catch (error) {
+        console.error("Database Error:", error);
+        res.status(500).json({ success: false, message: "Database error", error: error.message });
+    }
+});
+
+app.get('/api/status-list', async (req, res) => {
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request().query(`
+            SELECT status FROM stock_status ORDER BY ID
+        `);
+
         res.json({ success: true, data: result.recordset });
     } catch (error) {
-        console.error("Database error:", error);
-        res.status(500).json({ success: false, message: "Server error" });
+        console.error("Error fetching status list:", error);
+        res.status(500).json({ success: false, message: "Database error" });
     }
 });
 
 app.post('/api/save-preparation', async (req, res) => {
-    const { data, username } = req.body;
-
-    if (!data || !Array.isArray(data) || !username) {
-        return res.status(400).json({ success: false, message: "Invalid data format or missing username" });
-    }
+    const { DI_REF, ProductCode, PreparedQty, Username } = req.body;
+    const PreparedBy = Username || "ระบบ"; // ให้ดึงจาก session user หรือใส่ "ระบบ" ถ้าไม่มีค่า
 
     try {
-        let pool = await sql.connect(config);
+        if (!DI_REF || !ProductCode || PreparedQty === undefined) {
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        const pool = await sql.connect(config);
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
 
-        const request = new sql.Request(transaction);
-        for (const item of data) {
-            await request
-                .input('DI_REF', sql.VarChar, item.DI_REF)
-                .input('ICCAT_CODE', sql.VarChar, item.ICCAT_CODE)
-                .input('ICCAT_NAME', sql.VarChar, item.ICCAT_NAME)
-                .input('SKM_QTY', sql.Int,Math.abs(item.SKM_QTY)) // ✅ ป้องกันค่าติดลบ
-                .input('Status', sql.NVarChar, item.Status || 'กำลังจัดเตรียม') // เพิ่มสถานะ
-                .input('PreparedBy', sql.VarChar, username)
-                .input('Timestamp', sql.DateTime, new Date())
-                .query(`
-                    INSERT INTO PreparationRecords (DI_REF, ICCAT_CODE, ICCAT_NAME, SKM_QTY, Status, PreparedBy, Timestamp)
-                    VALUES (@DI_REF, @ICCAT_CODE, @ICCAT_NAME, @SKM_QTY, @Status, @PreparedBy, @Timestamp)
-                `);
-        }
+        // ✅ อัปเดต `stock_summary`
+        await transaction.request()
+        .input('DI_REF', sql.NVarChar, DI_REF)
+        .input('SKU_CODE', sql.NVarChar, ProductCode)
+        .input('LATEST_PREPARE_QTY', sql.Int, PreparedQty)
+        .input('UPDATE_DATE', sql.DateTime, new Date())
+        .input('UPDATE_BY', sql.NVarChar, PreparedBy)
+        .input('STATUS', sql.NVarChar, "จัดเตรียมสำเร็จ")
+        .query(`
+            UPDATE stock_summary
+            SET 
+                LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY, 
+                STATUS = @STATUS, 
+                UPDATE_DATE = @UPDATE_DATE, 
+                UPDATE_BY = @UPDATE_BY
+            WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+        `);
+
+        // ✅ ดึงค่า ICCAT_CODE และ ICCAT_NAME จาก stock_summary
+        const iccatQuery = await transaction.request()
+        .input('DI_REF', sql.NVarChar, DI_REF)
+        .input('SKU_CODE', sql.NVarChar, ProductCode)
+        .query(`
+            SELECT ICCAT_CODE, ICCAT_NAME 
+            FROM stock_summary 
+            WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+        `);
+
+    const { ICCAT_CODE, ICCAT_NAME } = iccatQuery.recordset[0] || { ICCAT_CODE: null, ICCAT_NAME: null };
+
+    // ✅ ถ้าหาไม่เจอให้แจ้งเตือนและไม่ทำการ INSERT
+    if (!ICCAT_CODE || !ICCAT_NAME) {
+    throw new Error(`ICCAT_CODE หรือ ICCAT_NAME ไม่พบสำหรับ SKU_CODE: ${ProductCode}`);
+    }
+
+    // ✅ บันทึกข้อมูลลง preparationRecords
+    await transaction.request()
+    .input('DI_REF', sql.NVarChar, DI_REF)
+    .input('SKU_CODE', sql.NVarChar, ProductCode)
+    .input('ICCAT_CODE', sql.NVarChar, ICCAT_CODE) // ✅ เพิ่ม ICCAT_CODE
+    .input('ICCAT_NAME', sql.NVarChar, ICCAT_NAME) // ✅ เพิ่ม ICCAT_NAME
+    .input('PREPARE_QTY', sql.Int, PreparedQty)
+    .input('PreparedBy', sql.NVarChar, PreparedBy)
+    .input('Timestamp', sql.DateTime, new Date())
+    .input('Status', sql.NVarChar, "จัดเตรียมสำเร็จ")
+    .query(`
+        INSERT INTO preparationRecords (DI_REF, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
+        VALUES (@DI_REF, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
+    `);
 
         await transaction.commit();
-        res.json({ success: true, message: "Data saved successfully" });
-    } catch (err) {
-        console.error("Database error:", err);
-        res.status(500).json({ success: false, message: "Failed to save data" });
+        res.json({ success: true, message: "Preparation saved successfully!" });
+
+    } catch (error) {
+        console.error("Error saving preparation:", error);
+        res.status(500).json({ success: false, message: "Database error", error: error.message });
     }
 });
+
 
 app.post('/search1', async (req, res) => {
     const { reference } = req.body;
@@ -184,24 +261,42 @@ app.post('/search1', async (req, res) => {
 
     try {
         const pool = await sql.connect(config);
-        const result = await pool.request()
-            .input('DI_REF', sql.VarChar, reference) // ใช้ parameter เพื่อป้องกัน SQL Injection
+
+        // เช็คข้อมูลจาก QUERY1
+        const query1Result = await pool.request()
+            .input('DI_REF', sql.VarChar, reference)
             .query(`
-                SELECT DI_REF, CONVERT(VARCHAR,DI_DATE,105) as DI_DATE, DI_AMOUNT, SKM_QTY, SKU_CODE, SKU_NAME, SKM_QTY as 'QTY'
-                FROM DOCINFO, DOCTYPE, SKUMASTER, SKUMOVE 
-                WHERE DI_REF = @DI_REF
+                SELECT CONVERT(INT,ID) AS IDENT, DI_REF, CONVERT(VARCHAR,DI_DATE,105) as DI_DATE, CONVERT(INT, LATEST_ROUND) as LATEST_ROUND, SKU_WL, SKU_CODE, SKU_NAME, TOTAL_SKU_QTY as QTY, TOTAL_CR_QTY, REMAINING_QTY as REMAIN_QTY, CONVERT(INT, LATEST_PREPARE_QTY) AS LATEST_PREPARE_QTY
+                FROM Stock_Summary
+                WHERE DI_REF = @DI_REF 
             `);
 
-        if (result.recordset.length > 0) {
-            res.json({ success: true, data: result.recordset });
+        // ถ้ามีข้อมูลจาก QUERY1
+        if (query1Result.recordset.length > 0) {
+            res.json({ success: true, data: query1Result.recordset });
         } else {
-            res.json({ success: false, message: 'No data found for the given reference.' });
+            // ถ้าไม่มีข้อมูลใน QUERY1, ดึงข้อมูลจาก QUERY2
+            const query2Result = await pool.request()
+                .input('DI_REF', sql.VarChar, reference)
+                .query(`
+                  SELECT 0 AS IDENT, DI_REF, CONVERT(VARCHAR,DI_DATE,105) as DI_DATE, 0 as LATEST_ROUND, SKU_CODE, SKU_WL, SKU_NAME, ABS(SKM_QTY) as REMAIN_QTY, ABS(SKM_QTY) as QTY, 0 as TOTAL_CR_QTY,  0 AS LATEST_PREPARE_QTY
+                  FROM DOCINFO, DOCTYPE, SKUMASTER, SKUMOVE 
+                  WHERE DI_REF = @DI_REF
+                `);
+
+            // ส่งผลลัพธ์จาก QUERY2 ถ้าไม่พบข้อมูลจาก QUERY1
+            if (query2Result.recordset.length > 0) {
+                res.json({ success: true, data: query2Result.recordset });
+            } else {
+                res.json({ success: false, message: 'No data found in both queries.' });
+            }
         }
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
+
 
 // API สำหรับ Insert ข้อมูลจาก stock
 app.post('/insert-stock-data', async (req, res) => {
@@ -217,30 +312,83 @@ app.post('/insert-stock-data', async (req, res) => {
         await transaction.begin();
 
         const request = new sql.Request(transaction);
+
         for (const [index, item] of data.entries()) {
+            // Insert data into Stock table
+
             await request
                 .input(`RefNo_${index}`, sql.VarChar, item.RefNo)
                 .input(`Round_${index}`, sql.Int, item.Round)
-                .input(`RefDate${index}`, sql.Date, item.RefDate)
+                .input(`RefDate_${index}`, sql.Date, item.RefDate.split("-").reverse().join("-"))
                 .input(`ProductCode_${index}`, sql.VarChar, item.ProductCode)
                 .input(`ProductName_${index}`, sql.VarChar, item.ProductName)
                 .input(`QuantitySold_${index}`, sql.Int, item.QuantitySold)
                 .input(`CheckQTY_${index}`, sql.Int, item.CheckQTY)
                 .input(`CreateBy_${index}`, sql.VarChar, item.CreateBy)
                 .query(`
-                    INSERT INTO Stock (DI_REF, CHECKROUND, DI_DATE, SKU_CODE, SKU_NAME, SKU_QTY, CR_QTY, CREATE_BY, UPDATE_DATE, UPDATE_BY)
-                    VALUES (@RefNo_${index}, @Round_${index}, @RefDate${index}, @ProductCode_${index}, @ProductName_${index}, @QuantitySold_${index}, @CheckQTY_${index}, @CreateBy_${index}, GETDATE(), @CreateBy_${index})
+                    INSERT INTO Stock 
+                    (DI_REF, CHECKROUND, DI_DATE, SKU_CODE, SKU_NAME, SKU_QTY, CR_QTY, CREATE_BY, UPDATE_DATE, UPDATE_BY)
+                    VALUES 
+                    (@RefNo_${index}, @Round_${index}, @RefDate_${index}, @ProductCode_${index}, @ProductName_${index}, 
+                    @QuantitySold_${index}, @CheckQTY_${index}, @CreateBy_${index}, GETDATE(), @CreateBy_${index})
                 `);
-        }
 
+            // Calculate remaining quantity and insert into Stock_Summary table
+            // const remainingQuantity = item.QuantitySold - item.CheckQTY;  // Calculating remaining quantity
+            const CRQTY = item.TotalCR + item.CheckQTY;
+            if(item.ID==0){
+                // await request
+                // .input(`DI_REF_${index}`, sql.VarChar, item.RefNo)
+                // .input(`DI_DATE_${index}`, sql.Date, item.RefDate.split("-").reverse().join("-"))
+                // .input(`SKU_WL_${index}`, sql.Int, item.Location)
+                // .input(`Round_${index}`, sql.Int, item.Round)
+                // // .input(`RefDate_${index}`, sql.Date, item.RefDate.split("-").reverse().join("-"))
+                // .input(`ProductCode_${index}`, sql.VarChar, item.ProductCode)
+                // .input(`ProductName_${index}`, sql.VarChar, item.ProductName)
+                // .input(`QuantitySold_${index}`, sql.Int, item.QuantitySold)
+                // .input(`CheckQTY_${index}`, sql.Int, item.CheckQTY)
+                // .input(`CreateBy_${index}`, sql.VarChar, item.CreateBy)
+                // .query(`
+                //     INSERT INTO Stock_Summary
+                //     (DI_REF, CHECKROUND, DI_DATE, SKU_CODE, SKU_NAME, SKU_QTY, CR_QTY, CREATE_BY, UPDATE_DATE, UPDATE_BY)
+                //     VALUES 
+                //     (@RefNo_${index}, @Round_${index}, @RefDate_${index}, @ProductCode_${index}, @ProductName_${index}, 
+                //     @QuantitySold_${index}, @CheckQTY_${index}, @CreateBy_${index}, GETDATE(), @CreateBy_${index})
+                // `);
+            }else{
+                await request
+                .input(`ident_${index}`, sql.Int, item.ID)
+                .input(`CKROUND_${index}`, sql.Int, item.Round)
+                .input(`LATEST_PREPARE_QTY_${index}`, sql.Int, item.LatestPPQTY)
+                .input(`Status_${index}`, sql.VarChar, item.Status)
+                .input(`TOTAL_CR_QTY_${index}`, sql.Int, CRQTY)      // Total CR quantity
+                .input(`REMAINING_QTY_${index}`, sql.Int, item.RemainQTY) // Remaining quantity
+                .input(`Updateby_${index}`, sql.VarChar, item.CreateBy)
+                .query(`
+                    UPDATE Stock_Summary 
+                    SET 
+                        LATEST_ROUND = @CKROUND_${index},
+                        TOTAL_SKU_QTY = @TOTAL_CR_QTY_${index},
+                        REMAINING_QTY = @REMAINING_QTY_${index},
+                        LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY_${index},
+                        status = @Status_${index},
+                        UPDATE_DATE = GETDATE(),
+                        UPDATE_BY = @Updateby_${index}
+                    WHERE id = @ident_${index}
+                `);
+            }
+            
+        }
 
         await transaction.commit();
         res.json({ success: true, message: "Data inserted successfully" });
     } catch (err) {
         console.error("Database error:", err);
+        await transaction.rollback();
         res.status(500).json({ success: false, message: "Failed to insert data" });
     }
 });
+
 
 // // เริ่มต้นเซิร์ฟเวอร์
 // app.listen(3000, () => {

@@ -246,12 +246,15 @@
                                             <th>ลำดับ</th>
                                             <th>รหัสสินค้า</th>
                                             <th>ชื่อสินค้า</th>
+                                            <th>ตำแหน่งเก็บสินค้า</th>
                                             <th>จำนวนขาย</th>
-                                            <!-- <th>จำนวนจัดเตรียม</th> -->
-                                            <th>จำนวนตรวจจ่าย</th>
+                                            <th>จำนวนที่จ่ายไปแล้ว</th>
+                                            <th>จำนวนจัดเตรียม</th>
+                                            <th>จำนวนตรวจจ่ายรอบนี้</th>
                                             <th>จำนวนคงเหลือ</th>
                                             <th>Action</th>
-                                           
+                                            <th style="display: none;" >ID</th>
+                                            <!-- <th>ID</th> -->
                                         </tr>
                                     </thead>
                                     <tbody>                                        
@@ -260,7 +263,7 @@
                                 <div id="message"></div>
 
                                 <script src="/js/QRcode.js"></script>
-                            
+                            </div>
                             </div>
                             <div class="card-footer text-right">
                                 <button type="button" class="btn btn-success" id="insertStockButton" hidden data-toggle="modal" data-target="#confirmInsertModal" >ยืนยัน</button>
@@ -294,8 +297,6 @@
                                 </div>
                             </div>
 
-
-                        
                             <script>
 
                                 document.getElementById("insertStockButton").addEventListener("click", function() {
@@ -313,9 +314,9 @@
                                     // myModal.hide();
 
                                     const table = document.getElementById("resultTable");
-                                    const RefNo =document.getElementById("DI_Ref").value;
+                                   const RefNo =document.getElementById("DI_Ref").value;
                                     const RefDate =document.getElementById("DI_Date").value;
-                                    const Round =document.getElementById("DI_Round").value;
+                                    const Round = document.getElementById("DI_Round").value;
                                     const rows = table.querySelectorAll("tbody tr");
                                     const data = [];
 
@@ -324,20 +325,37 @@
                                         const cells = row.querySelectorAll("td");
                                         const checkQTYInput = row.querySelector(`#CheckQTY${index + 1}`);
                                         const subtotalInput = row.querySelector(`#Subtotal${index + 1}`);
-
+                                        const identInput = row.querySelector(`#ident${index + 1}`);
+                                        const location =  cells[3].textContent.trim();
+                                        const status ='ตรวจจ่ายเรียบร้อย';
+                                        const lastestppqty = null;
+                                        if(parseInt(checkQTYInput.value, 10) > 0 ){
+                                            if(location=="Warehouse" && location =="Store/Warehouse"){
+                                                if(parseInt(subtotalInput.value, 10)>0){
+                                                    status = 'รอการจัดเตรียม';
+                                                    lastestppqty = 0;
+                                                }
+                                            }  
+                                        }
                                         data.push({
-                                            RefNo: RefNo,
-                                            RefDate: RefDate,
-                                            Round: Round,
-                                            ProductCode: cells[1].textContent.trim(),
-                                            ProductName: cells[2].textContent.trim(),
-                                            QuantitySold: parseInt(cells[3].textContent.trim(), 10),
-                                            CheckQTY: parseInt(checkQTYInput.value, 10) || 0, // ดึงค่าจากช่อง "จำนวนตรวจจ่าย"
-                                            CreateBy: localStorage.getItem('username')
+                                            ID:  parseInt(identInput.value, 10) || 0,  // update เข้า stock summary
+                                            RefNo: RefNo, // update เข้า stock 
+                                            RefDate: RefDate, // update เข้า stock 
+                                            Round: Round,  // update เข้า stock และ stock summary
+                                            ProductCode: cells[1].textContent.trim(), // update เข้า stock 
+                                            ProductName: cells[2].textContent.trim(), // update เข้า stock 
+                                            Location: cells[3].textContent.trim(),
+                                            QuantitySold: parseInt(cells[4].textContent.trim(), 10), // update เข้า stock 
+                                            TotalCR: parseInt(cells[5].textContent.trim(), 10), // update เข้า stock summary
+                                            CheckQTY: parseInt(checkQTYInput.value, 10) || 0, // update เข้า stock 
+                                            RemainQTY: parseInt(subtotalInput.value, 10) || 0, // update เข้า stock summary
+                                            LatestPPQTY: lastestppqty, // update เข้า stock summary
+                                            CreateBy: localStorage.getItem('username'),// update เข้า stock และ stock summary
+                                            Status: status // update เข้า stock summary
                                         });
                                     });
 
-                                    console.log("Data to Insert:", data); // Debug ดูข้อมูลที่ดึงมา
+                                    console.log("Data to Update:", data); // Debug ดูข้อมูลที่ดึงมา
 
                                     // ส่งข้อมูลไปยัง Backend
                                     try {
@@ -594,7 +612,7 @@
                                 
                             });
                             </script>
-                        </div>
+                        <!-- </div> -->
                     </div>
                     </div>
                     </div>
