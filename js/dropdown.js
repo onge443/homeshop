@@ -6,6 +6,7 @@ async function loadProductCategories() {
       if (!response.ok) throw new Error("Failed to fetch product categories");
       
       const { data } = await response.json();
+      console.log("✅ API Response:", data); // ✅ ดูว่ามีข้อมูลจาก API หรือไม่
 
       // ✅ เพิ่มตัวเลือก "ทั้งหมด" เป็นค่าเริ่มต้น
       categoryDropdown.innerHTML = '<option value="all">ทั้งหมด</option>';

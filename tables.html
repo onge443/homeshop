@@ -24,6 +24,9 @@
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
+    
+    <script src="/js/QRcode.js"></script>
+
     <!-- Bootstrap 5 CSS -->
      <!-- Bootstrap CSS -->
     
@@ -106,19 +109,6 @@
                         </button>
                     </form>
 
-                    <!-- Topbar Search
-                    <form
-                        class="d-none d-sm-inline-block form-inline mr-auto ml-md-3 my-2 my-md-0 mw-100 navbar-search">
-                        <div class="input-group">
-                            <input type="text" class="form-control bg-light border-0 small" placeholder="Search for..."
-                                aria-label="Search" aria-describedby="basic-addon2">
-                            <div class="input-group-append">
-                                <button class="btn btn-primary" type="button">
-                                    <i class="fas fa-search fa-sm"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form> -->
 
                     <!-- Topbar Navbar -->
                 <!-- Topbar Navbar -->
@@ -147,6 +137,10 @@
                             </a>
                         </div>
                     </li>
+                    <script>
+                        // Event listener for the logout button
+                       
+                    </script>
 
                 </ul>   
 
@@ -229,7 +223,7 @@
                                           <input type="text" readonly class="form-control-plaintext" id="DI_Date">
                                         </div>
                                       
-                                        <label for="DI_ROUND" class="col-sm-1 col-form-label">ตรวจจ่ายครั้งที่:</label>
+                                        <label for="DI_Round" class="col-sm-1 col-form-label">ตรวจจ่ายครั้งที่:</label>
                                         <div class="col-sm-3">
                                           <input type="text" readonly class="form-control-plaintext" id="DI_Round">
                                         </div>
@@ -254,6 +248,9 @@
                                             <th>จำนวนคงเหลือ</th>
                                             <th>Action</th>
                                             <th style="display: none;" >ID</th>
+                                            <th style="display: none;" >CAT ID</th>
+                                            <th style="display: none;" >CAT CODE</th>
+                                            <th style="display: none;" >CAT NAME</th>
                                             <!-- <th>ID</th> -->
                                         </tr>
                                     </thead>
@@ -262,24 +259,34 @@
                                 </table>
                                 <div id="message"></div>
 
-                                <script src="/js/QRcode.js"></script>
+                               
                             </div>
                             </div>
                             <div class="card-footer text-right">
                                 <button type="button" class="btn btn-success" id="insertStockButton" hidden data-toggle="modal" data-target="#confirmInsertModal" >ยืนยัน</button>
-                                
-    
-                                <button type="button" class="btn btn-primary" id="printButton">
-                                <!-- <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden > -->
+                                <div id="printContainer" style="display: none;">
+                                    <iframe id="printFrame" style="width: 100%; height: 800px; border: none;" hidden></iframe>
+                                </div>
+                                <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden >
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-printer" viewBox="0 0 16 16">
                                         <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1"/>
                                         <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1"/>
                                       </svg>
                                     พิมพ์
                                 </button>
+                                
+    
+                                <!-- <button type="button" class="btn btn-primary" id="printButton"> -->
+                                <!-- <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-printer" viewBox="0 0 16 16">
+                                        <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1"/>
+                                        <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1"/>
+                                      </svg>
+                                    พิมพ์
+                                </button> -->
                             </div>
                             <!-- Insert confirm Modal-->
-                            <div class="modal fade" id="confirmInsertModal" tabindex="-1" role="dialog" aria-labelledby="confirmCheckModallabel" aria-hidden="true">
+                            <div class="modal fade" id="confirmInsertModal" tabindex="-1" role="dialog" aria-labelledby="confirmCheckModallabel" aria-hidden="true" >
                                 <div class="modal-dialog" role="document">
                                     <div class="modal-content">
                                         <div class="modal-header">
@@ -297,322 +304,6 @@
                                 </div>
                             </div>
 
-                            <script>
-
-                                document.getElementById("insertStockButton").addEventListener("click", function() {
-                                    // แสดง Modal เมื่อผู้ใช้คลิกปุ่ม "ยืนยัน"
-                                    $('#confirmInsertModal').modal('show');
-                                    // $('#confirmInsertModal').modal('dispose');
-                                });
-
-                                document.getElementById("confirmToInsert").addEventListener("click", async function () {
-                                    
-                                    $('#confirmInsertModal').modal('hide'); // ปิด Modal
-                                    $('.modal-backdrop').remove(); // ลบ backdrop ด้วยตัวเอง
-                                    $('body').removeClass('modal-open');
-                                    // var myModal = bootstrap.Modal.getInstance(document.getElementById('confirmInsertModal'));
-                                    // myModal.hide();
-
-                                    const table = document.getElementById("resultTable");
-                                   const RefNo =document.getElementById("DI_Ref").value;
-                                    const RefDate =document.getElementById("DI_Date").value;
-                                    const Round = document.getElementById("DI_Round").value;
-                                    const rows = table.querySelectorAll("tbody tr");
-                                    const data = [];
-
-                                    // ดึงข้อมูลจากแต่ละแถวในตาราง
-                                    rows.forEach((row, index) => {
-                                        const cells = row.querySelectorAll("td");
-                                        const checkQTYInput = row.querySelector(`#CheckQTY${index + 1}`);
-                                        const subtotalInput = row.querySelector(`#Subtotal${index + 1}`);
-                                        const identInput = row.querySelector(`#ident${index + 1}`);
-                                        const location =  cells[3].textContent.trim();
-                                        const status ='ตรวจจ่ายเรียบร้อย';
-                                        const lastestppqty = null;
-                                        if(parseInt(checkQTYInput.value, 10) > 0 ){
-                                            if(location=="Warehouse" && location =="Store/Warehouse"){
-                                                if(parseInt(subtotalInput.value, 10)>0){
-                                                    status = 'รอการจัดเตรียม';
-                                                    lastestppqty = 0;
-                                                }
-                                            }  
-                                        }
-                                        data.push({
-                                            ID:  parseInt(identInput.value, 10) || 0,  // update เข้า stock summary
-                                            RefNo: RefNo, // update เข้า stock 
-                                            RefDate: RefDate, // update เข้า stock 
-                                            Round: Round,  // update เข้า stock และ stock summary
-                                            ProductCode: cells[1].textContent.trim(), // update เข้า stock 
-                                            ProductName: cells[2].textContent.trim(), // update เข้า stock 
-                                            Location: cells[3].textContent.trim(),
-                                            QuantitySold: parseInt(cells[4].textContent.trim(), 10), // update เข้า stock 
-                                            TotalCR: parseInt(cells[5].textContent.trim(), 10), // update เข้า stock summary
-                                            CheckQTY: parseInt(checkQTYInput.value, 10) || 0, // update เข้า stock 
-                                            RemainQTY: parseInt(subtotalInput.value, 10) || 0, // update เข้า stock summary
-                                            LatestPPQTY: lastestppqty, // update เข้า stock summary
-                                            CreateBy: localStorage.getItem('username'),// update เข้า stock และ stock summary
-                                            Status: status // update เข้า stock summary
-                                        });
-                                    });
-
-                                    console.log("Data to Update:", data); // Debug ดูข้อมูลที่ดึงมา
-
-                                    // ส่งข้อมูลไปยัง Backend
-                                    try {
-                                        const response = await fetch('/insert-stock-data', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ data })
-                                        });
-
-                                        const result = await response.json();
-                                        if (result.success) {
-                                            // alert("Data inserted successfully!");
-                                            document.getElementById("insertStockButton").hidden=true;
-                                            // document.getElementById("printButton").setAttribute("disabled",false);
-                                            document.getElementById("printButton").disabled=false;
-                                            tabledisable();
-                                            showAlert("บันทีกข้อมูลตรวจจ่ายเรียบร้อย");
-                                        } else {
-                                            alert(`Insert failed: ${result.message}`);
-                                        }
-                                    } catch (err) {
-                                        console.error("Error inserting data:", err);
-                                        alert("Failed to insert data. Please try again.");
-                                    }
-
-                                    
-                                });
-
-                                function tabledisable() {
-                                    const table = document.getElementById("resultTable");
-                                    const rows = table.querySelectorAll("tbody tr");
-
-                                    // ดึงข้อมูลจากแต่ละแถวในตาราง
-                                    rows.forEach((row, index) => {
-                                        // ดึง element จาก id โดยไม่ใช้ # 
-                                        const checkQTY = document.getElementById(`CheckQTY${index + 1}`);
-                                        const subtotal = document.getElementById(`Subtotal${index + 1}`);
-                                        const receiveAll = document.getElementById(`ReceiveAll${index + 1}`);
-
-                                        // ตรวจสอบว่า element มีอยู่ก่อนที่จะใช้ setAttribute
-                                        if (checkQTY) {
-                                            checkQTY.setAttribute("disabled", true);
-                                        }
-                                        if (subtotal) {
-                                            subtotal.setAttribute("disabled", true);
-                                        }
-                                        if (receiveAll) {
-                                            receiveAll.setAttribute("disabled", true);
-                                        }
-                                    });
-                                }
-
-                                function showAlert(text) {
-                                    // สร้าง div สำหรับ Alert
-                                    const alertDiv = document.createElement('div');
-                                    alertDiv.classList.add('alert', 'alert-success', 'd-flex', 'align-items-center');
-                                    alertDiv.setAttribute('role', 'alert');
-
-                                    // สร้าง svg ไอคอน
-                                    const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                                    svgIcon.classList.add('bi', 'flex-shrink-0', 'me-2');
-                                    svgIcon.setAttribute('width', '24');
-                                    svgIcon.setAttribute('height', '24');
-                                    svgIcon.setAttribute('role', 'img');
-                                    svgIcon.setAttribute('aria-label', 'Success:');
-                                    const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                                    useElement.setAttribute('xlink:href', '#check-circle-fill');
-                                    svgIcon.appendChild(useElement);
-
-                                    // สร้างข้อความใน Alert
-                                    const alertText = document.createElement('div');
-                                    alertText.textContent = text;
-
-                                    // เพิ่มไอคอนและข้อความเข้าไปใน alertDiv
-                                    alertDiv.appendChild(svgIcon);
-                                    alertDiv.appendChild(alertText);
-
-                                    // เพิ่ม alert ลงใน body หรือส่วนที่ต้องการ
-                                    document.body.appendChild(alertDiv);
-
-                                    // ปิด alert หลังจาก 5 วินาที
-                                    setTimeout(() => {
-                                        alertDiv.remove();
-                                    }, 5000);
-                                }                               
-
-                                document.getElementById("printButton").addEventListener("click", function () {
-                                console.log("Print button clicked!"); // Debug เพื่อดูว่าโค้ดทำงานหรือไม่
-                                const qrtext =  document.getElementById("DI_Ref").value+"-"+document.getElementById("DI_Round").value;
-                              
-                                // const qrContainer = document.createElement("div");
-                                // qrContainer.id = "qrcodeContainer";
-                                // qrContainer.style.display = "flex";
-                                // qrContainer.style.flexWrap = "wrap";
-                                // qrContainer.style.gap = "10px";
-                                // qrContainer.style.marginBottom = "20px";
-                                
-                                
-                                
-                                // สร้าง QR Code สำหรับแต่ละแถว
-                                const qrDiv = document.createElement("div");
-                                qrDiv.style.textAlign = "center";
-
-                                new QRCode(qrDiv, {
-                                    text: qrtext, // รวม DI_Ref และ DI_Round
-                                    width: 50,
-                                    height: 50,
-                                    colorDark: "#000000",
-                                    colorLight: "#ffffff",
-                                    correctLevel: QRCode.CorrectLevel.H
-                                });
-                               
-                                // qrContainer.appendChild(qrDiv); // เพิ่ม QR Code ใน Container
-                                // ดึงข้อมูลจากตาราง
-                                const table = document.getElementById("resultTable");
-                                const rows = table.querySelectorAll("tbody tr");
-                                let updatedTableHtml = `
-                                    <table border="1" style="width: 100%; border-collapse: collapse;">
-                                        <thead>
-                                            <tr>
-                                                <th>ลำดับ</th>
-                                                <th>รหัสสินค้า</th>
-                                                <th>ชื่อสินค้า</th>
-                                                <th>จำนวนขาย</th>
-                                                <th>จำนวนตรวจจ่าย</th>
-                                                <th>จำนวนคงเหลือ</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                `;
-
-                                rows.forEach((row, index) => {
-                                    const cells = row.querySelectorAll("td");
-                                    const inputCQ = row.querySelector(`#CheckQTY${index + 1}`);  // ดึง <input> ในแถวปัจจุบัน
-                                    const checkQTY = inputCQ ? inputCQ.value:"0"; // ถ้าพบ <input> ให้ดึงค่า .value
-
-                                    const inputTotal = row.querySelector(`#Subtotal${index + 1}`);  // ดึง <input> ในแถวปัจจุบัน
-                                    const TotalQTY = inputTotal ? inputTotal.value:"0"; // ถ้าพบ <input> ให้ดึงค่า .value
-                                   
-                                    
-                                    updatedTableHtml += `
-                                        <tr>
-                                            <td>${cells[0].textContent}</td>
-                                            <td>${cells[1].textContent}</td>
-                                            <td>${cells[2].textContent}</td>
-                                            <td>${cells[3].textContent}</td>
-                                            <td>${checkQTY}</td>
-                                            <td>${TotalQTY}</td>
-                                        </tr>
-                                    `;
-                                    
-                                });
-
-                                updatedTableHtml += `</tbody></table>`;
-                                // เปิดหน้าต่างสำหรับพิมพ์
-                                
-                                const tablestock = updatedTableHtml; // ดึง HTML ของตาราง
-                                
-                               
-                                setTimeout(() => {
-                                const qrCanvas = qrDiv.querySelector("canvas");
-                                const qrImageBase64 = qrCanvas?.toDataURL("image/png"); // ดึง QR Code เป็น Base64
-
-                                const qrCodeHtml = `<img src="${qrImageBase64}" alt="QR Code">`;
-
-                                const newWindow = window.open("", "", "width=800,height=600");
-                                newWindow.document.write(`
-                                    <html>
-                                        <head>
-                                            <meta charset="UTF-8">
-                                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                                            <title>Report Summary</title>
-                                             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-                                            
-    
-                                            <style>
-                                                body {
-                                                    font-family: Arial, sans-serif;
-                                                    padding: 20px;
-                                                    background-color: #f8f9fa;
-                                                }
-
-                                                .report-container {
-                                                    
-                                                    display: flex; /* ใช้ Flexbox */
-                                                    justify-content: space-between; /* จัดให้ตารางซ้าย QR Code ขวา */
-                                                    align-items: flex-start;
-                                                }
-
-                                                .report-content {
-                                                    flex: 1; /* ให้ตารางยืดเต็มพื้นที่ด้านซ้าย */
-                                                }
-
-                                                .qr-container {
-                                                    flex: 0 0 150px; /* กำหนดขนาด QR Code */
-                                                    text-align: center;
-                                                    padding-left: 20px;
-                                                }
-                                                
-                                                .table-container {
-                                                    width: 100%;
-                                                    max-width: none; /* ลบข้อจำกัดความกว้าง */
-                                                    margin: auto;
-                                                }
-
-                                                 table {
-                                                    width: 100%;
-                                                    border-collapse: collapse;
-                                                    margin-top: 20px;
-                                                }
-
-                                                table, th, td {
-                                                    border: 1px solid black;
-                                                }
-
-                                                th, td {
-                                                    padding: 10px;
-                                                    text-align: left;
-                                                }
-
-                                                .header {
-                                                    text-align: center;
-                                                    margin-bottom: 20px;
-                                                }
-
-                                            </style>
-                                        </head>
-                                        <body>
-
-                                        <div class="container report-container">
-                                            <div class="report-content">
-                                                <div class="header">
-                                                    <h2>ใบจำหน่ายสินค้า</h2>
-                                                </div>
-                                            
-                                            </div>
-                                            <div class="qr-container">
-                                            ${qrCodeHtml}
-                                            </div>
-                                            
-                                        </div>
-                                        <div class="container">
-                                            <div class="table-container">
-                                                ${tablestock}
-                                            </div> 
-                                        </div>
-                                            </body>
-                                        </html>`);
-                                newWindow.document.close();
-                                newWindow.print();
-                                newWindow.close();
-                            }, 1000);
-                                
-                                
-                            });
-                            </script>
-                        <!-- </div> -->
                     </div>
                     </div>
                     </div>
@@ -665,13 +356,28 @@
     
     
     <script>
-        // Event listener for the logout button
+        
+    //     window.onload = function() {
+    // const CheckUser = localStorage.getItem('username');
+    // if (CheckUser === null || CheckUser.trim() === '') {
+    //     window.location.href ='/';
+    //     }
+    // };
+    // function login(){
+    // const CheckUser = localStorage.getItem('username');
+    // if (CheckUser === null || CheckUser.trim() === '') {
+    //     window.location.href ='/';
+    //     }
+    // };
+    // login();
+
         document.getElementById('logoutButton').addEventListener('click', function() {
-            // Remove 'username' from localStorage
-            localStorage.removeItem('username');
-            // Redirect user after logout (optional)
-            window.location.href = '/'; 
+                            // Remove 'username' from localStorage
+                            localStorage.removeItem('username');
+                            // Redirect user after logout (optional)
+                            window.location.href = '/'; 
         });
+
     </script>
     <!-- โหลดไลบรารี QR Code -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -693,5 +399,12 @@
     <script src="js/demo/datatables-demo.js"></script>
 
 </body>
-
+<script>
+     window.open = function() {
+        const CheckUser = localStorage.getItem('username');
+        if (CheckUser === null || CheckUser.trim() === '') {
+            window.location.href ='login';
+            }
+        };
+</script>
 </html>

@@ -22,7 +22,7 @@
 
     <!-- Custom styles for this page -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
-
+   
     <!-- ลิงก์ไฟล์ CSS ใหม่ -->
     <!-- <link href="css/custom.css" rel="stylesheet"> -->
 
@@ -302,15 +302,7 @@
             </div>
         </div>
     </div>
-    <script>
-        // Event listener for the logout button
-        document.getElementById('logoutButton').addEventListener('click', function() {
-            // Remove 'username' from localStorage
-            localStorage.removeItem('username');
-            // Redirect user after logout (optional)
-            window.location.href = '/'; 
-        });
-    </script>
+   
 
     <!-- Bootstrap core JavaScript-->
     <script src="vendor/jquery/jquery.min.js"></script>
@@ -332,5 +324,21 @@
     <script src="js/dropdown.js" defer></script>
 
 </body>
+<script>
+        
+    window.onload = function() {
+    const CheckUser = localStorage.getItem('username');
+    if (CheckUser === null || CheckUser.trim() === '') {
+        window.location.href ='/';
+        }
+    };
 
+    document.getElementById('logoutButton').addEventListener('click', function() {
+                        // Remove 'username' from localStorage
+                        localStorage.removeItem('username');
+                        // Redirect user after logout (optional)
+                        window.location.href = '/'; 
+    });
+
+</script>
 </html>

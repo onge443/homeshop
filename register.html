@@ -1,76 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="">
     <meta name="author" content="">
-
-    <title>SB Admin 2 - Register</title>
-
-    <!-- Custom fonts for this template-->
+    <title>Register</title>
     <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
-    <link
-        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
-        rel="stylesheet">
-
-    <!-- Custom styles for this template-->
+    <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
     <link href="css/sb-admin-2.min.css" rel="stylesheet">
-
 </head>
-
 <body class="bg-gradient-primary">
-
     <div class="container">
-
         <div class="card o-hidden border-0 shadow-lg my-5">
             <div class="card-body p-0">
-                <!-- Nested Row within Card Body -->
                 <div class="row">
                     <div class="col-lg-5 d-none d-lg-block bg-register-image"></div>
                     <div class="col-lg-7">
                         <div class="p-5">
                             <div class="text-center">
-                                <h1 class="h4 text-gray-900 mb-4">Create an Account!</h1>
+                                <h1 class="h4 text-gray-900 mb-4">Create an Account</h1>
                             </div>
-                            <form class="user">
-                                <div class="form-group row">
-                                    <div class="col-sm-6 mb-3 mb-sm-0">
-                                        <input type="text" class="form-control form-control-user" id="exampleFirstName"
-                                            placeholder="First Name">
-                                    </div>
-                                    <div class="col-sm-6">
-                                        <input type="text" class="form-control form-control-user" id="exampleLastName"
-                                            placeholder="Last Name">
-                                    </div>
+                            <form class="user" id="registerForm">
+                                <div class="form-group">
+                                    <input type="text" class="form-control form-control-user" id="username" placeholder="Username" required>
                                 </div>
                                 <div class="form-group">
-                                    <input type="email" class="form-control form-control-user" id="exampleInputEmail"
-                                        placeholder="Email Address">
+                                    <input type="password" class="form-control form-control-user" id="password" placeholder="Password" required>
                                 </div>
-                                <div class="form-group row">
-                                    <div class="col-sm-6 mb-3 mb-sm-0">
-                                        <input type="password" class="form-control form-control-user"
-                                            id="exampleInputPassword" placeholder="Password">
-                                    </div>
-                                    <div class="col-sm-6">
-                                        <input type="password" class="form-control form-control-user"
-                                            id="exampleRepeatPassword" placeholder="Repeat Password">
-                                    </div>
+                                <div class="form-group">
+                                    <input type="password" class="form-control form-control-user" id="confirmPassword" placeholder="Confirm Password" required>
                                 </div>
-                                <a href="login.html" class="btn btn-primary btn-user btn-block">
-                                    Register Account
-                                </a>
-                                <hr>
-                                <a href="index.html" class="btn btn-google btn-user btn-block">
-                                    <i class="fab fa-google fa-fw"></i> Register with Google
-                                </a>
-                                <a href="index.html" class="btn btn-facebook btn-user btn-block">
-                                    <i class="fab fa-facebook-f fa-fw"></i> Register with Facebook
-                                </a>
+                                <div class="form-group">
+                                    <input type="text" class="form-control form-control-user" id="firstname" placeholder="Firstname" required>
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" class="form-control form-control-user" id="lastname" placeholder="Lastname" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="branch_code">เลือกสาขา</label>
+                                    <select id="branch_code" class="form-control">
+                                        <option value="" selected>เลือกสาขา</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-user btn-block">Register Account</button>
                             </form>
                             <hr>
                             <div class="text-center">
@@ -84,19 +58,107 @@
                 </div>
             </div>
         </div>
-
     </div>
-
-    <!-- Bootstrap core JavaScript-->
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Core plugin JavaScript-->
     <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
-
-    <!-- Custom scripts for all pages-->
     <script src="js/sb-admin-2.min.js"></script>
+    <script>
 
+    async function loadBranches() {
+            try {
+                const response = await fetch("/api/branches");
+                const result = await response.json();
+                const branchSelect = document.getElementById("branch_code");
+                
+                if (result.success && result.data.length > 0) {
+                    branchSelect.innerHTML = "<option value=''>เลือกสาขา</option>";
+                    
+                    result.data.forEach(branch => {
+                        let option = document.createElement("option");
+                        option.value = branch.branch_code;
+                        option.textContent = branch.branch_name;
+                        branchSelect.appendChild(option);
+                    });
+                    console.log("Branches loaded:", result.data);
+
+            // ✅ บังคับให้ UI รีเฟรช
+                requestAnimationFrame(() => {
+                    branchSelect.style.display = "none";
+                    branchSelect.offsetHeight;
+                    branchSelect.style.display = "block";
+                    branchSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                });
+            }
+            
+            } catch (error) {
+                console.error("Error loading branches:", error);
+            }
+        }
+
+
+        document.getElementById("branch_code").addEventListener("change", function () {
+            const selectedOption = this.options[this.selectedIndex];
+
+        if (selectedOption !== "") {
+        this.value = selectedOption.value; // ✅ ตั้งค่าให้ UI อัปเดต
+        console.log("เลือกสาขา:", selectedOption.text);
+
+        // ✅ บังคับให้ UI รีเฟรช
+        requestAnimationFrame(() => {
+            this.style.display = "none";
+            this.offsetHeight; // Trigger reflow
+            this.style.display = "block";
+                });
+            }
+        });
+
+        window.onload = function () {
+            loadBranches();
+            
+        };
+
+        document.getElementById("registerForm").addEventListener("submit", async function(event) { 
+            event.preventDefault();
+            
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value.trim();
+            const confirmPassword = document.getElementById("confirmPassword").value.trim();
+            const firstname = document.getElementById("firstname").value.trim();
+            const lastname = document.getElementById("lastname").value.trim();
+            const branch_code = document.getElementById("branch_code").value;
+            const branch_name = getSelectedBranchName();
+
+            if (!firstname || !lastname || !username || !password || !branch_code) {
+                alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                alert("รหัสผ่านไม่ตรงกัน");
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/register", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password, firstname, lastname, branch_code, branch_name })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert("สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ");
+                    window.location.href = "/login";
+                } else {
+                    alert("สมัครสมาชิกไม่สำเร็จ: " + result.message);
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                alert("เกิดข้อผิดพลาด โปรดลองอีกครั้ง");
+            }
+        });
+   
+    </script>
 </body>
-
 </html>
