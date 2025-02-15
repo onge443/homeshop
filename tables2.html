@@ -326,19 +326,46 @@
 </body>
 <script>
         
+        
+    function searchPreparation() {
+        const username = localStorage.getItem("username"); // ✅ ดึง username จาก localStorage
+        if (!username) {
+            alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+            window.location.href = '/'; // ✅ ถ้ายังไม่ได้ login ให้ redirect
+            return;
+        }
+
+        fetch('/api/search-preparation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                category: document.getElementById("filterCategory").value,
+                username: username // ✅ ส่ง username ไปที่ API
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log("🔍 Data received:", data);
+            updateTable(data.data);
+        })
+        .catch(error => console.error("❌ API Error:", error));
+    }
+
     window.onload = function() {
-    const CheckUser = localStorage.getItem('username');
-    if (CheckUser === null || CheckUser.trim() === '') {
-        window.location.href ='/';
+        const username = localStorage.getItem('username');
+        if (!username) {
+            window.location.href = '/'; // ✅ ถ้ายังไม่ได้ login ให้ redirect
         }
     };
 
     document.getElementById('logoutButton').addEventListener('click', function() {
-                        // Remove 'username' from localStorage
-                        localStorage.removeItem('username');
-                        // Redirect user after logout (optional)
-                        window.location.href = '/'; 
+        localStorage.removeItem('username'); // ✅ ลบ username ตอน logout
+        window.location.href = '/';
     });
+
+    document.getElementById("searchButton").addEventListener("click", searchPreparation);
+
+
 
 </script>
 </html>

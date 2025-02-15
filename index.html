@@ -86,27 +86,31 @@
 
 
 <script>
-        const form = document.getElementById('loginForm');
-form.addEventListener('submit', async (e) => {
-    e.preventDefault(); // ป้องกันการรีเฟรชหน้า
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
+    document.getElementById("loginForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
 
-    const response = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-    });
+    try {
+        const response = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
 
-    const result = await response.json();
-    if (result.success) {
-        localStorage.setItem('username',username );
-        // Redirect ไปยังหน้า Dashboard
-        window.location.href = result.redirect;
-    } else {
-        const message = document.getElementById('message');
-        message.textContent = result.message;
-        message.style.color = 'red';
+        const result = await response.json();
+        if (result.success) {
+            localStorage.setItem("username", result.username);
+            localStorage.setItem("branch_code", result.branch_code); // ✅ เก็บ branch_code
+            localStorage.setItem("branch_name", result.branch_name); // ✅ เก็บ branch_name
+            console.log("✅ Login Success:", result.username, "Branch:", result.branch_code);
+            window.location.href = result.redirect; // ✅ ไปยัง Dashboard
+        } else {
+            alert("Login ไม่สำเร็จ: " + result.message);
+        }
+    } catch (error) {
+        console.error("❌ Login Error:", error);
+        alert("เกิดข้อผิดพลาด โปรดลองอีกครั้ง");
     }
 });
     </script>

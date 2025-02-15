@@ -34,15 +34,43 @@ const configHS54 = {
         trustServerCertificate: true,
     }
 };
+// 🔥 ตั้งค่าการเชื่อมต่อสำหรับ HSPK
+const configHSPK = {
+    user: "my_user",
+    password: "my_password",
+    server: "DESKTOP-3ISTS3L\\SQLEXPRESS",
+    database: "HSPK",
+    port: 1433,
+    options: {
+        encrypt: false,
+        trustServerCertificate: true,
+    }
+};
+
 // 🛠️ ใช้ SQL Connection Pool Manager
 const pools = {
     TestOng: new sql.ConnectionPool(configTestOng),
-    HS54: new sql.ConnectionPool(configHS54)
+    HS54: new sql.ConnectionPool(configHS54),
+    HSPK: new sql.ConnectionPool(configHSPK)
 };
 
 async function getPool(dbName) {
     if (!pools[dbName]._connected) await pools[dbName].connect();
     return pools[dbName];
+}
+
+async function getUserDatabase(username) {
+    const pool = await getPool("TestOng");
+    const result = await pool.request()
+        .input("username", sql.NVarChar, username)
+        .query("SELECT branch_code FROM users WHERE username = @username");
+
+    if (result.recordset.length > 0) {
+        const branchCode = result.recordset[0].branch_code;
+        if (branchCode === 'HS54') return "HS54";
+        if (branchCode === 'HSPK') return "HSPK";
+    }
+    return null;
 }
 // เชื่อมต่อฐานข้อมูล
 // sql.connect(config).then(() => {
@@ -98,15 +126,16 @@ app.post('/api/register', async (req, res) => {
 });
 
 // API สำหรับตรวจสอบการล็อกอิน
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
         let pool = await getPool("TestOng");
         let result = await pool.request()
             .input('username', sql.VarChar, username)
+            .input("password", sql.NVarChar, password)
             .query(`
-                SELECT u.password, b.branch_name 
+                SELECT u.password, u.branch_code, b.branch_name 
                 FROM users u
                 LEFT JOIN branches b ON u.branch_code = b.branch_code
                 WHERE u.username = @username
@@ -122,7 +151,13 @@ app.post('/login', async (req, res) => {
             const isMatch = await bcrypt.compare(password, hashedPassword);
             if (isMatch) {
 
-                res.json({ success: true, branch: result.recordset[0].branch_name, redirect: '/dashboard' });
+                res.json({ 
+                    success: true, 
+                    username: username, 
+                    branch_code: result.recordset[0].branch_code,  // ✅ ส่ง branch_code กลับไป
+                    branch_name: result.recordset[0].branch_name, 
+                    redirect: '/dashboard' 
+                });
                 
             } else {
                 res.status(401).json({ success: false, message: 'Invalid password' });
@@ -186,56 +221,43 @@ app.post('/api/search-preparation', async (req, res) => {
     const { category, status, documentId } = req.body;
 
     try {
-        const pool = await getPool("TestOng");
-        const request = pool.request(); // ✅ ต้องสร้าง request ก่อนใช้
+        const dbName = await getUserDatabase(username); // ✅ หาว่าต้องใช้ฐานข้อมูลไหน
+        if (!dbName) return res.status(400).json({ success: false, message: "ไม่พบฐานข้อมูลของผู้ใช้" });
+
+        const pool = await getPool(dbName);
+        const request = pool.request();
+
+        if (category && category !== "all") {
+            request.input('Category', sql.NVarChar, category);
+        }
 
         let query = `
             SELECT 
-                DI_REF AS DocumentID, 
-                SKU_WL AS StorageLocation, 
-                ICCAT_KEY AS ProductCategory, 
-                SKU_CODE AS ProductCode, 
-                SKU_NAME AS ProductName, 
-                TOTAL_SKU_QTY AS SoldQty, 
-                Total_CR_QTY AS ReceivedQty, 
-                REMAINING_QTY AS PendingQty, 
-                LATEST_PREPARE_QTY, 
-                STATUS AS Status
-            FROM stock_summary
-            WHERE SKU_WL IN ('Warehouse', 'Store/Warehouse') 
+                DI_REF AS DocumentID,
+                DI_DATE,
+                SKU_CODE,
+                SKU_NAME,
+                ICCAT_KEY AS ProductCategory,
+                ICCAT_CODE AS ProductCategoryCode,
+                ICCAT_NAME AS ProductCategoryName,
+                TOTAL_SKU_QTY AS SoldQty,
+                0 AS ReceivedQty,
+                REMAINING_QTY AS PendingQty,
+                LATEST_PREPARE_QTY,
+                STATUS
+            FROM Stock_Summary
+            WHERE STATUS = 'รอการจัดเตรียม'
         `;
 
         if (category && category !== "all") {
-            query += ` AND ICCAT_KEY LIKE @Category`; // ✅ เปลี่ยนเป็น ICCAT_KEY
-            request.input('Category', sql.NVarChar, `%${category}%`);
-        }
-        if (status && status !== "all") {
-            query += ` AND STATUS LIKE @Status`; // ✅ เปลี่ยนเป็น STATUS
-            request.input('Status', sql.NVarChar, `%${status}%`);
-        }
-        if (documentId) {
-            query += ` AND DI_REF LIKE @DocumentID`; // ✅ เปลี่ยนเป็น DI_REF
-            request.input('DocumentID', sql.NVarChar, `%${documentId}%`);
+            query += ` AND ICCAT_KEY = @Category`;
         }
 
-        query += `
-            ORDER BY 
-                CASE WHEN STATUS = 'รอการจัดเตรียม' THEN 1 ELSE 2 END, 
-                CREATE_DATE ASC
-        `;
-
-        // console.log("Executing Query:", query); // ✅ Debug Query
         const result = await request.query(query);
-        // console.log("Query Result:", result.recordset); // ✅ Debug Response
-
-        if (!result.recordset || result.recordset.length === 0) {
-            return res.json({ success: true, data: [] }); // ✅ ป้องกัน undefined
-        }
-
-        res.json({ success: true, data: result.recordset });
+        res.json({ success: true, data: result.recordset || [] });
 
     } catch (error) {
-        console.error("Database Error:", error);
+        console.error("❌ Database Error:", error);
         res.status(500).json({ success: false, message: "Database error", error: error.message });
     }
 });
