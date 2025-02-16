@@ -104,11 +104,15 @@ document.getElementById("fileInput").addEventListener("change", async function (
 
 document.getElementById('searchForm1').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const ref = document.getElementById('reference').value; // reference
-    const response = await fetch('/search1', {
+    //const ref = document.getElementById('reference').value; // reference
+    const dataarray = {
+        reference: document.getElementById('reference').value, // reference
+        branch: localStorage.getItem("branch_code")
+    };
+    const response = await fetch('/searchCheckQTY', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reference: ref })
+        body: JSON.stringify(dataarray)
     });
     
     if (!response.ok) {
@@ -152,7 +156,7 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
             let  status ="ตรวจจ่ายเรียบร้อย";
             let lastestppqty = null;
             if(parseInt(checkQTYInput.value, 10) > 0 ){
-                if(location == "Store/Warehouse"){
+                if(location == "สโตร์/คลัง"){
                     status = "รอการจัดเตรียม";
                     if(parseInt(subtotalInput.value, 10)>0){
                         // status = "รอการจัดเตรียม";
@@ -161,7 +165,7 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
                         status ="ตรวจจ่ายเรียบร้อย";
                         //status ="รับของครบเรียบร้อย";
                     }
-                }else if(location == "Warehouse"){
+                }else if(location == "คลังสินค้า"){
                     if((parseInt(prepareQTY,10) != 0 && !isNaN(prepareQTY)) && (parseInt(checkQTYInput.value, 10) < parseInt(prepareQTY,10))) {
                         status = "รอการจัดเตรียม";
                         c
@@ -180,7 +184,7 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
 
                 }
             }else{
-                if(location == "Warehouse" && parseInt(prepareQTY,10) == 0 || isNaN(prepareQTY)){
+                if(location == "คลังสินค้า" && parseInt(prepareQTY,10) == 0 || isNaN(prepareQTY)){
                     status = "รอการจัดเตรียม";
                 }
             }
@@ -201,7 +205,8 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
                 Status: status, // update เข้า stock summary
                 CATKEY:  parseInt(cells[11].textContent.trim(), 10) || 0,
                 CATCODE:  cells[12].textContent.trim(),
-                CATNAME:  cells[13].textContent.trim()
+                CATNAME:  cells[13].textContent.trim(),
+                BRANCHCODE: localStorage.getItem('branch_code')
             });
             location="";
         });
@@ -566,6 +571,8 @@ function updateTable(result) {
                 if(inputSubTotal != 0 && document.getElementById("ReceiveAll"+i).hidden === true){
                     document.getElementById("ReceiveAll"+i).hidden = false;
 
+                }else{
+                    document.getElementById("ReceiveAll"+i).hidden = true;
                 }
                 // console.log('Updated จำนวนตรวจจ่าย:', inputCheckQTY.value);
 

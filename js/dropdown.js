@@ -49,7 +49,7 @@ async function searchPreparation() {
             { 
                 "data": "LATEST_PREPARE_QTY",
                 "render": function (data, type, row) {
-                    return `<input type='number' class='form-control prepare-input' value='${data || ''}' data-doc='${row.DocumentID}' data-prod='${row.SKU_CODE}'>`;
+                    return `<input type='number' class='form-control prepare-input' value='${data || ''}' data-doc='${row.DocumentID}' data-prod='${row.SKU_CODE}' max ='${row.PendingQty}' min='0' >`;
                 }
             },
             { "data": "STATUS" },

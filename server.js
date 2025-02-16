@@ -6,6 +6,8 @@ const sql = require('mssql');
 const { LocalStorage } = require('node-localstorage');
 
 const app = express();
+app.use(bodyParser.json({ limit: '50mb' }));  // ตั้งค่าเป็น 50MB
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 const port = 3000;
 
@@ -213,65 +215,69 @@ app.post('/api/search-preparation', async (req, res) => {
         const request = pool.request();
 
         request.input('Branch', sql.VarChar, branch);
-        if (category && category !== "all") request.input('Category', sql.NVarChar, category);
-        if (status && status !== "all") request.input('Status', sql.NVarChar, status);
-        if (documentID) request.input('documentID', sql.VarChar, documentID);
+        if (category && category !== "all") {
+            request.input('Category', sql.NVarChar, category);
+        }
+        if (status && status !== "all") {
+            request.input('Status', sql.NVarChar, status);
+        }
+        if (documentID){ 
+            request.input('documentID', sql.VarChar, documentID);
+        }
         request.input('start', sql.Int, start);
         request.input('length', sql.Int, length);
 
         // ✅ ใส่ `;` เพื่อป้องกัน Syntax Error
-        let query = `
-            ;WITH StockCTE AS (
+        let baseQuery = `
+            SELECT TOP (@length) *
+            FROM (
                 SELECT 
-                    ROW_NUMBER() OVER (ORDER BY DI_DATE DESC, DI_REF) AS RowNum,
-                    DI_REF AS DocumentID, 
-                    DI_DATE, SKU_CODE, SKU_NAME, ICCAT_NAME AS ProductCategoryName,
-                    TOTAL_SKU_QTY AS SoldQty, 0 AS ReceivedQty, REMAINING_QTY AS PendingQty,
-                    LATEST_PREPARE_QTY, STATUS, SKU_WL
-                FROM Stock_Summary WITH (NOLOCK)
-                WHERE BRANCH_CODE = @Branch 
-                AND SKU_WL IN ('คลังสินค้า','สโตร์/คลัง')
-                AND DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary WHERE BRANCH_CODE = @Branch)
-            )
-            SELECT * FROM StockCTE WHERE RowNum BETWEEN @start AND (@start + @length - 1)
+                    ROW_NUMBER() OVER (ORDER BY SS.DI_DATE DESC, SS.DI_REF) AS RowNum,
+                    SS.DI_REF AS DocumentID, 
+                    SS.DI_DATE, 
+                    SS.SKU_CODE, 
+                    SS.SKU_NAME, 
+                    SS.ICCAT_NAME AS ProductCategoryName,
+                    SS.TOTAL_SKU_QTY AS SoldQty, 
+                    0 AS ReceivedQty, 
+                    SS.REMAINING_QTY AS PendingQty,
+                    SS.LATEST_PREPARE_QTY, 
+                    SST.status AS STATUS,
+                    SS.SKU_WL
+                FROM Stock_Summary SS WITH (NOLOCK)
+                LEFT JOIN stock_status SST WITH (NOLOCK) 
+                    ON SS.STATUS = SST.ID
+                WHERE SS.BRANCH_CODE = @Branch 
+                AND SS.SKU_WL IN ('คลังสินค้า','สโตร์/คลัง')
+                AND SS.DI_DATE = (
+                    SELECT MAX(DI_DATE) 
+                    FROM Stock_Summary WITH (NOLOCK) 
+                    WHERE BRANCH_CODE = @Branch
+                )
+            ) AS StockData
+            WHERE RowNum > @start
+            ORDER BY RowNum;
         `;
 
-        // ✅ แก้ไข WHERE ไม่ให้เกิด `AND ()`
-        if (category && category !== "all") query += ` AND ProductCategoryName = @Category`;
-        if (documentID) query += ` AND DocumentID = @documentID`;
-        //         }else{
-        //             query += `AND DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary WHERE BRANCH_CODE = 'HS54')`;
-        //             // บน PRD ต้องใช้้อันล่างนี้
-        //             // query += ` AND DI_DATE = CAST(GETDATE() AS DATE)`;
-        //         }
-
-        if (status && status !== "all") query += ` AND STATUS = @Status`;
-
-        // ✅ ใช้ CTE ให้ถูกต้องสำหรับ COUNT
-        let totalQuery = `
-            ;WITH StockCTE AS (
-                SELECT 
-                    ROW_NUMBER() OVER (ORDER BY DI_DATE DESC, DI_REF) AS RowNum
-                FROM Stock_Summary WITH (NOLOCK)
-                WHERE BRANCH_CODE = @Branch 
-                AND SKU_WL IN ('คลังสินค้า','สโตร์/คลัง')
-                AND DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary WHERE BRANCH_CODE = @Branch)
+        const totalRecordsQuery = `
+            SELECT COUNT(*) AS total 
+            FROM Stock_Summary WITH (NOLOCK)
+            WHERE BRANCH_CODE = @Branch 
+            AND DI_DATE = (
+                SELECT MAX(DI_DATE) 
+                FROM Stock_Summary WITH (NOLOCK) 
+                WHERE BRANCH_CODE = @Branch
             )
-            SELECT COUNT(*) AS total FROM StockCTE
         `;
+        const totalRecords = (await request.query(totalRecordsQuery)).recordset[0].total;
 
-        let paginatedQuery = `${query} ORDER BY RowNum OFFSET @start ROWS FETCH NEXT @length ROWS ONLY`;
-
-        const totalRecords = (await request.query(totalQuery)).recordset[0].total;
-        const result = await request.query(paginatedQuery);
-
+        const result = await request.query(baseQuery);
         res.json({
             draw: req.body.draw,
             recordsTotal: totalRecords,
             recordsFiltered: totalRecords,
             data: result.recordset
         });
-
     } catch (error) {
         console.error("Database Error:", error);
         res.status(500).json({ success: false, message: "Database error", error: error.message });
@@ -316,7 +322,7 @@ app.post('/api/save-preparation', async (req, res) => {
         .input('LATEST_PREPARE_QTY', sql.Int, PreparedQty)
         .input('UPDATE_DATE', sql.DateTime, new Date())
         .input('UPDATE_BY', sql.NVarChar, PreparedBy)
-        .input('STATUS', sql.NVarChar, "จัดเตรียมสำเร็จ")
+        .input('STATUS', sql.NVarChar, "2")
         .input('BRANCH_CODE',sql.VarChar, branch)
         .query(`
             UPDATE stock_summary
@@ -355,7 +361,7 @@ app.post('/api/save-preparation', async (req, res) => {
     .input('PREPARE_QTY', sql.Int, PreparedQty)
     .input('PreparedBy', sql.NVarChar, PreparedBy)
     .input('Timestamp', sql.DateTime, new Date())
-    .input('Status', sql.NVarChar, "จัดเตรียมสำเร็จ")
+    .input('Status', sql.NVarChar, "2")
     .query(`
         INSERT INTO preparationRecords (DI_REF, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
         VALUES (@DI_REF, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
@@ -371,8 +377,8 @@ app.post('/api/save-preparation', async (req, res) => {
 });
 
 
-app.post('/search1', async (req, res) => {
-    const { reference } = req.body;
+app.post('/searchCheckQTY', async (req, res) => {
+    const { reference, branch } = req.body;
 
     if (!reference) {
         return res.status(400).json({ success: false, message: 'Reference is required' });
@@ -386,26 +392,27 @@ app.post('/search1', async (req, res) => {
         const query1Result = await pool.request()
             .input('DI_REF', sql.VarChar, reference)
             .query(`
-                SELECT
-                    CONVERT(INT,ID) AS IDENT,
-                    DI_REF,
-                    CONVERT(VARCHAR,DI_DATE,105) as DI_DATE,
-                    CONVERT(INT, LATEST_ROUND) as LATEST_ROUND,
-                    SKU_CODE, 
-                    SKU_WL, 
-                    SKU_NAME,
-                    ICCAT_KEY,
-                    ICCAT_CODE,
-                    ICCAT_NAME,
-                    TOTAL_SKU_QTY as QTY,
-                    TOTAL_CR_QTY,
-                    REMAINING_QTY as REMAIN_QTY,
-                    CONVERT(INT, ISNULL(LATEST_PREPARE_QTY, 0)) AS LATEST_PREPARE_QTY,
-                    STATUS
-                FROM
-                    Stock_Summary
-                WHERE
-                    DI_REF = @DI_REF 
+                SELECT 
+                    CONVERT(INT, SS.ID) AS IDENT,
+                    SS.DI_REF,
+                    CONVERT(VARCHAR, SS.DI_DATE, 105) AS DI_DATE,
+                    CONVERT(INT, SS.LATEST_ROUND) AS LATEST_ROUND,
+                    SS.SKU_CODE, 
+                    SS.SKU_WL, 
+                    SS.SKU_NAME,
+                    SS.ICCAT_KEY,
+                    SS.ICCAT_CODE,
+                    SS.ICCAT_NAME,
+                    SS.TOTAL_SKU_QTY AS QTY,
+                    SS.TOTAL_CR_QTY,
+                    SS.REMAINING_QTY AS REMAIN_QTY,
+                    CONVERT(INT, ISNULL(SS.LATEST_PREPARE_QTY, 0)) AS LATEST_PREPARE_QTY,
+                    SST.status AS STATUS
+                FROM Stock_Summary SS WITH (NOLOCK)
+                LEFT JOIN stock_status SST WITH (NOLOCK) 
+                    ON SS.STATUS = SST.ID
+                WHERE SS.DI_REF = @DI_REF;
+
             `);
 
         // ถ้ามีข้อมูลจาก QUERY1 ส่งข้อมูลกลับ
@@ -413,22 +420,16 @@ app.post('/search1', async (req, res) => {
             res.json({ success: true, data: query1Result.recordset });
         } else {
             // ถ้าไม่มีข้อมูลใน QUERY1, ใช้ Connection `HS54` สำหรับ QUERY2
-            const pool2 = await getPool("HS54");
+            const pool2 = await getPool(branch);
             const query2Result = await pool2.request()
                 .input('DI_REF', sql.VarChar, reference)
                 .query(`
-                    SELECT 
-                        0 AS IDENT, 
+                    SELECT
+                        0 AS IDENT,
                         DI_REF, 
                         CONVERT(VARCHAR, DI_DATE, 105) AS DI_DATE, 
-                        0 AS LATEST_ROUND, 
-                        SKU_CODE, 
-                         CASE 
-                            WHEN SKU_WL = 1 THEN 'Warehouse'
-                            WHEN SKU_WL = 2 THEN 'Store/Warehouse'
-                            WHEN SKU_WL = 3 THEN 'Store'
-                            ELSE 'Unknown'
-                        END AS SKU_WL, 
+                        0 AS LATEST_ROUND,  
+                        SKU_CODE,
                         SKU_NAME,
                         ICCAT.ICCAT_KEY,
                         ICCAT.ICCAT_CODE,
@@ -436,15 +437,32 @@ app.post('/search1', async (req, res) => {
                         ABS(SKM_QTY) AS REMAIN_QTY, 
                         ABS(SKM_QTY) AS QTY, 
                         0 AS TOTAL_CR_QTY,  
-                        0 AS LATEST_PREPARE_QTY,
-	                    '' AS STATUS
-                    FROM 
-                        DOCINFO
-                        INNER JOIN DOCTYPE ON DOCINFO.DI_DT = DOCTYPE.DT_KEY
-                        INNER JOIN SKUMOVE ON DOCINFO.DI_KEY = SKUMOVE.SKM_DI
-                        INNER JOIN SKUMASTER ON SKUMOVE.SKM_SKU = SKUMASTER.SKU_KEY
-                        INNER JOIN ICCAT ON SKUMASTER.SKU_ICCAT = ICCAT.ICCAT_KEY
-                    WHERE
+                        NULL AS LATEST_PREPARE_QTY, 
+                        CASE 
+                            WHEN LEFT(ICCAT_CODE, 1) IN ('A', 'B', 'K') THEN 'คลังสินค้า'
+                            WHEN LEFT(ICCAT_CODE, 1) = 'R' THEN 'สโตร์/คลัง'
+                            WHEN LEFT(ICCAT_CODE, 1) IN ('M', 'O', 'P', 'S', 'T', 'V', 'W') THEN 'สโตร์'
+                            ELSE 'Unknown'
+                        END AS SKU_WL, 
+                        CASE 
+                            WHEN SKU_WL = 'คลังสินค้า' THEN 'รอการจัดเตรียม'     
+                            WHEN SKU_WL = 'สโตร์/คลัง' THEN 'รอสโตร์ตรวจจ่าย'    
+                            WHEN SKU_WL = 'สโตร์' THEN 'รอการตรวจจ่าย'      
+                            ELSE 'Unknown'
+                        END AS STATUS
+                    FROM DOCINFO
+                    INNER JOIN DOCTYPE ON DOCINFO.DI_DT = DOCTYPE.DT_KEY
+                    INNER JOIN SKUMOVE ON DOCINFO.DI_KEY = SKUMOVE.SKM_DI
+                    INNER JOIN SKUMASTER ON SKUMOVE.SKM_SKU = SKUMASTER.SKU_KEY
+                    INNER JOIN ICCAT ON SKUMASTER.SKU_ICCAT = ICCAT.ICCAT_KEY
+                    WHERE 
+                        (DOCTYPE.DT_PROPERTIES=302 OR
+                        DOCTYPE.DT_PROPERTIES=307 OR
+                        DOCTYPE.DT_PROPERTIES=308 OR
+                        DOCTYPE.DT_PROPERTIES=337) AND
+                        (DOCINFO.DI_ACTIVE = 0) AND
+                        SKU_CODE != '4001' AND
+                        LEFT(ICCAT_CODE, 1) IN ('A', 'B', 'K', 'M', 'O', 'R', 'P', 'S', 'T', 'V', 'W') AND
                         DI_REF = @DI_REF
                 `);
 
@@ -489,20 +507,32 @@ app.post('/insert-stock-data', async (req, res) => {
                 .input(`SProductName_${index}`, sql.NVarChar, item.ProductName)
                 .input(`SQuantitySold_${index}`, sql.Int, item.QuantitySold)
                 .input(`SCheckQTY_${index}`, sql.Int, item.CheckQTY)
+                .input(`SBRANCHCODE_${index}`, sql.VarChar, item.BRANCHCODE) 
                 .input(`SCreateBy_${index}`, sql.VarChar, item.CreateBy)
                 .query(`
                     INSERT INTO Stock 
-                    (DI_REF, CHECKROUND, DI_DATE, SKU_WL, SKU_CODE, SKU_NAME, SKU_QTY, CR_QTY, CREATE_BY, UPDATE_DATE, UPDATE_BY)
+                    (DI_REF, CHECKROUND, DI_DATE, SKU_WL, SKU_CODE, SKU_NAME, SKU_QTY, CR_QTY, BRANCH_CODE, CREATE_BY, UPDATE_DATE, UPDATE_BY)
                     VALUES 
                     (@SRefNo_${index}, @SRound_${index}, @SRefDate_${index},  @SLocation_${index}, @SProductCode_${index}, @SProductName_${index}, 
-                    @SQuantitySold_${index}, @SCheckQTY_${index}, @SCreateBy_${index}, GETDATE(), @SCreateBy_${index})
+                    @SQuantitySold_${index}, @SCheckQTY_${index}, @SBRANCHCODE_${index}, @SCreateBy_${index}, GETDATE(), @SCreateBy_${index})
                 `);
 
             // Calculate remaining quantity and insert into Stock_Summary table
             // const remainingQuantity = item.QuantitySold - item.CheckQTY;  // Calculating remaining quantity
             const CRQTY = item.TotalCR + item.CheckQTY;
+            const statusMapping = {
+                "รอสโตร์ตรวจจ่าย": '5',
+                "รอการตรวจจ่าย": '2',
+                "รอการจัดเตรียม": '1',
+                "จัดเตรียมเรียบร้อย": '3',
+                "ตรวจจ่ายเรียบร้อย": '4'
+            };
+            
+            const statusValue = statusMapping[item.Status] || '0'; // ✅ ถ้าไม่พบค่า ใช้ 0 (กรณีผิดพลาด)
 
             if(item.ID==0){
+                
+                
                 await request
                 .input(`DI_REF_${index}`, sql.VarChar, item.RefNo)
                 .input(`DI_DATE_${index}`, sql.Date, item.RefDate.split("-").reverse().join("-"))
@@ -517,10 +547,11 @@ app.post('/insert-stock-data', async (req, res) => {
                 .input(`TOTAL_CR_QTY_${index}`, sql.Int, CRQTY)      // Total CR quantity
                 .input(`REMAINING_QTY_${index}`, sql.Int, item.RemainQTY) // Remaining quantity
                 .input(`LATEST_PREPARE_QTY_${index}`, sql.Int, item.LatestPPQTY)
-                .input(`Status_${index}`, sql.NVarChar, item.Status)
+                .input(`Status_${index}`, sql.NVarChar, statusValue)
                 .input(`CreateBy_${index}`, sql.VarChar, item.CreateBy)
                 .input(`ICCAT_CODE_${index}`, sql.NVarChar, item.CATCODE)
                 .input(`ICCAT_NAME_${index}`, sql.NVarChar, item.CATNAME)
+                .input(`BRANCH_CODE_${index}`, sql.VarChar, item.BRANCHCODE)
                 .query(`
                     INSERT INTO
                         Stock_Summary (
@@ -540,7 +571,8 @@ app.post('/insert-stock-data', async (req, res) => {
                             UPDATE_DATE,
                             UPDATE_BY,
                             ICCAT_CODE,
-                            ICCAT_NAME
+                            ICCAT_NAME,
+                            BRANCH_CODE
                         ) VALUES (
                             @DI_REF_${index},
                             @DI_DATE_${index},
@@ -558,7 +590,8 @@ app.post('/insert-stock-data', async (req, res) => {
                             GETDATE(),
                             @CreateBy_${index},
                             @ICCAT_CODE_${index},
-                            @ICCAT_NAME_${index}
+                            @ICCAT_NAME_${index},
+                            @BRANCH_CODE_${index}
                         )
                 `);
             }else{
@@ -566,7 +599,7 @@ app.post('/insert-stock-data', async (req, res) => {
                 .input(`ident_${index}`, sql.Int, item.ID)
                 .input(`CKROUND_${index}`, sql.Int, item.Round)
                 .input(`LATEST_PREPARE_QTY_${index}`, sql.Int, item.LatestPPQTY)
-                .input(`Status_${index}`, sql.NVarChar, item.Status)
+                .input(`Status_${index}`, sql.NVarChar, statusValue)
                 .input(`TOTAL_CR_QTY_${index}`, sql.Int, CRQTY)      // Total CR quantity
                 .input(`REMAINING_QTY_${index}`, sql.Int, item.RemainQTY) // Remaining quantity
                 .input(`Updateby_${index}`, sql.VarChar, item.CreateBy)
