@@ -102,8 +102,9 @@
         if (result.success) {
             localStorage.setItem("username", result.username);
             localStorage.setItem("branch_code", result.branch_code); // ✅ เก็บ branch_code
+            localStorage.setItem("user_rights", result.user_rights); // ✅ เพิ่ม user_rights
 
-            console.log("✅ Login Success:", result.username, "Branch:", result.branch_code);
+            console.log("✅ Login Success:", result.username, "Branch:", result.branch_code, "Rights:", result.user_rights);
             window.location.href = result.redirect; // ✅ ไปยัง Dashboard
         } else {
             alert("Login ไม่สำเร็จ: " + result.message);

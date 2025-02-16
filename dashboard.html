@@ -156,7 +156,9 @@
             tableBody.innerHTML = "<tr><td colspan='4' class='text-center'>❌ ไม่พบข้อมูล</td></tr>";
             return;
         }
-
+        console.log("📊 จำนวนข้อมูลที่โหลด:", data.length); // ✅ Debug ดูว่ามีกี่รายการ
+        console.table(data); // ✅ แสดงข้อมูลใน Console
+        
         tableBody.innerHTML = data.map(row => `
             <tr>
                 <td>${row.DI_REF}</td>

@@ -125,7 +125,7 @@ app.post('/api/login', async (req, res) => {
             .input('username', sql.VarChar, username)
             .input("password", sql.NVarChar, password)
             .query(`
-                SELECT u.password, u.branch_code, b.branch_name 
+                SELECT u.password, u.branch_code, u.user_rights, b.branch_name 
                 FROM users u
                 LEFT JOIN branches b ON u.branch_code = b.branch_code
                 WHERE u.username = @username
@@ -145,7 +145,8 @@ app.post('/api/login', async (req, res) => {
                     success: true, 
                     username: username, 
                     branch_code: result.recordset[0].branch_code,  // ✅ ส่ง branch_code กลับไป
-                    branch_name: result.recordset[0].branch_name, 
+                    branch_name: result.recordset[0].branch_name,
+                    user_rights: result.recordset[0].user_rights, // ✅ เพิ่ม user_rights 
                     redirect: '/dashboard' 
                 });
                 
@@ -179,10 +180,10 @@ app.get('/api/get-stock-status2', async (req, res) => {
         const result = await pool.request()
             .input("LatestDate", sql.Date, latestDate)
             .query(`
-                SELECT DI_REF, SKU_NAME, LATEST_PREPARE_QTY, STATUS
-                FROM stock_summary
+                SELECT TOP 50 DI_REF, SKU_NAME, LATEST_PREPARE_QTY, STATUS
+                FROM Stock_Summary
                 WHERE DI_DATE = @LatestDate
-                ORDER BY UPDATE_DATE DESC
+                ORDER BY DI_REF DESC, SKU_NAME ASC
             `);
 
         res.json({ success: true, data: result.recordset });
@@ -230,7 +231,22 @@ app.get('/api/get-stock-status', async (req, res) => {
 app.get('/api/product-categories', async (req, res) => {
     try {
         const pool = await getPool("HS54"); // ✅ เชื่อมต่อ HS54
-        const result = await pool.request().query("SELECT ICCAT_KEY, ICCAT_NAME FROM ICCAT WHERE LEFT(ICCAT_CODE, 1) IN ('A', 'B', 'K', 'R', 'M', 'O', 'P', 'S', 'T', 'V', 'W') ORDER BY ICCAT_NAME");
+        const result = await pool.request().query(`
+            SELECT DISTINCT ICCAT_CODE, ICCAT_NAME
+            FROM ICCAT
+            WHERE ICCAT_CODE LIKE 'A%' 
+               OR ICCAT_CODE LIKE 'B%'
+               OR ICCAT_CODE LIKE 'K%'
+               OR ICCAT_CODE LIKE 'M%'
+               OR ICCAT_CODE LIKE 'O%'
+               OR ICCAT_CODE LIKE 'R%'
+               OR ICCAT_CODE LIKE 'P%'
+               OR ICCAT_CODE LIKE 'S%'
+               OR ICCAT_CODE LIKE 'T%'
+               OR ICCAT_CODE LIKE 'V%'
+               OR ICCAT_CODE LIKE 'W%'
+            ORDER BY ICCAT_CODE
+        `);
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error("❌ Error fetching product categories from HS54:", error);

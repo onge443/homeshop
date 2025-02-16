@@ -75,19 +75,23 @@ async function loadProductCategories() {
         const response = await fetch('/api/product-categories');
         if (!response.ok) throw new Error("Failed to fetch product categories");
 
-        const { data } = await response.json();
-        categoryDropdown.innerHTML = '<option value="all">ทั้งหมด</option>';
+        const { success, data } = await response.json();
+        if (!success) throw new Error("API returned failure response");
+
+        categoryDropdown.innerHTML = '<option value="all">ทั้งหมด</option>'; // ✅ เพิ่มค่า "ทั้งหมด"
         
         data.forEach(category => {
             const option = document.createElement("option");
-            option.value = category.ICCAT_KEY;
-            option.textContent = category.ICCAT_NAME;
+            option.value = category.ICCAT_CODE; // ✅ ใช้ ICCAT_CODE แทน ICCAT_KEY
+            option.textContent = `${category.ICCAT_CODE} - ${category.ICCAT_NAME}`;
             categoryDropdown.appendChild(option);
         });
     } catch (error) {
         console.error("Error loading product categories:", error);
     }
 }
+// ✅ โหลดประเภทสินค้าตอนหน้าเว็บโหลด
+document.addEventListener("DOMContentLoaded", loadProductCategories);
 
 // ✅ โหลดข้อมูลสถานะ
 async function loadStatusList() {
