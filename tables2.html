@@ -180,7 +180,11 @@
                                             <div class="form-group">
                                                 <label for="filterStatus">สถานะ:</label>
                                                 <select id="filterStatus" class="form-control">
-                                                    <option value="all">ทั้งหมด</option>
+                                                    <option value="1" selected>รอการจัดเตรียม</option>
+                                                    <option value="2">รอการตรวจจ่าย</option>
+                                                    <option value="3">จัดเตรียมเรียบร้อย</option>
+                                                    <option value="4">ตรวจจ่ายเรียบร้อย</option>
+                                                    <option value="5">รอสโตร์ตรวจจ่าย</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -331,8 +335,18 @@
 
     window.onload = function() {
         const username2 = localStorage.getItem('username');
+        const userRights = localStorage.getItem("user_rights"); // ✅ ดึงสิทธิ์ของ user
         if (!username2) {
             window.location.href = '/'; // ✅ ถ้ายังไม่ได้ login ให้ redirect
+        }
+        const filterStatus = document.getElementById("filterStatus");
+        if (userRights === "user") {
+            // ✅ ล็อค dropdown และให้ค่าเป็น "1" (รอการจัดเตรียม)
+            filterStatus.value = "1";
+            filterStatus.setAttribute("disabled", "true"); // ✅ ปิดการเปลี่ยนค่า
+        } else {
+            // ✅ ถ้าเป็น admin เปิดให้เลือกค่าได้
+            filterStatus.removeAttribute("disabled", "true");
         }
     };
 

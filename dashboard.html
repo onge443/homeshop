@@ -147,28 +147,28 @@
     <!-- Script for fetching and displaying stock summary -->
     <script>
     document.addEventListener("DOMContentLoaded", async () => {
-        try {
-            const response = await fetch("/api/get-stock-status"); // ✅ API ใหม่
-            const { success, data } = await response.json();
-            const tableBody = document.querySelector("#stockSummaryTable tbody");
+    try {
+        const response = await fetch("/api/get-stock-status2"); // ✅ ใช้ API ที่แก้ไขแล้ว
+        const { success, data } = await response.json();
+        const tableBody = document.querySelector("#stockSummaryTable tbody");
 
-            if (!success || !data.length) {
-                tableBody.innerHTML = "<tr><td colspan='4' class='text-center'>❌ ไม่พบข้อมูล</td></tr>";
-                return;
-            }
-
-            tableBody.innerHTML = data.map(row => `
-                <tr>
-                    <td>${row.DI_REF}</td>
-                    <td>${row.SKU_NAME}</td>
-                    <td>${row.LATEST_PREPARE_QTY || '-'}</td>
-                    <td>${row.STATUS}</td>
-                </tr>
-            `).join("");
-        } catch (error) {
-            console.error("⚠️ Error loading stock status:", error);
+        if (!success || !data.length) {
+            tableBody.innerHTML = "<tr><td colspan='4' class='text-center'>❌ ไม่พบข้อมูล</td></tr>";
+            return;
         }
-    });
+
+        tableBody.innerHTML = data.map(row => `
+            <tr>
+                <td>${row.DI_REF}</td>
+                <td>${row.SKU_NAME}</td>
+                <td>${row.LATEST_PREPARE_QTY || '-'}</td>
+                <td>${row.STATUS}</td>
+            </tr>
+        `).join("");
+    } catch (error) {
+        console.error("⚠️ Error loading stock status:", error);
+    }
+});
 
     document.getElementById('logoutButton').addEventListener('click', function() {
         localStorage.removeItem('username');

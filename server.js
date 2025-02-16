@@ -160,6 +160,37 @@ app.post('/api/login', async (req, res) => {
         res.status(500).send('Server error');
     }
 });
+
+app.get('/api/get-stock-status2', async (req, res) => {
+    try {
+        const pool = await getPool("TestOng");
+
+        // ✅ ดึง `DI_DATE` ล่าสุดก่อน
+        const latestDateQuery = await pool.request().query(`
+            SELECT MAX(DI_DATE) AS LatestDate FROM stock_summary
+        `);
+        const latestDate = latestDateQuery.recordset[0].LatestDate;
+
+        if (!latestDate) {
+            return res.json({ success: false, message: "ไม่พบข้อมูลวันที่ล่าสุด" });
+        }
+
+        // ✅ ดึงเฉพาะข้อมูลที่ `DI_DATE` เท่ากับวันที่ล่าสุด
+        const result = await pool.request()
+            .input("LatestDate", sql.Date, latestDate)
+            .query(`
+                SELECT DI_REF, SKU_NAME, LATEST_PREPARE_QTY, STATUS
+                FROM stock_summary
+                WHERE DI_DATE = @LatestDate
+                ORDER BY UPDATE_DATE DESC
+            `);
+
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error("Error fetching stock status:", error);
+        res.status(500).json({ success: false, message: "Database error" });
+    }
+});
 // ดึงสาขามาจาก branch
 app.get('/api/branches', async (req, res) => {
     try {
@@ -218,9 +249,7 @@ app.post('/api/search-preparation', async (req, res) => {
         if (category && category !== "all") {
             request.input('Category', sql.NVarChar, category);
         }
-        if (status && status !== "all") {
-            request.input('Status', sql.NVarChar, status);
-        }
+        
         if (documentID){ 
             request.input('documentID', sql.VarChar, documentID);
         }
@@ -256,19 +285,27 @@ app.post('/api/search-preparation', async (req, res) => {
                 )
             ) AS StockData
             WHERE RowNum > @start
-            ORDER BY RowNum;
         `;
 
-        const totalRecordsQuery = `
-            SELECT COUNT(*) AS total 
-            FROM Stock_Summary WITH (NOLOCK)
-            WHERE BRANCH_CODE = @Branch 
-            AND DI_DATE = (
-                SELECT MAX(DI_DATE) 
-                FROM Stock_Summary WITH (NOLOCK) 
-                WHERE BRANCH_CODE = @Branch
-            )
-        `;
+        // ✅ ถ้าผู้ใช้เลือก `status` ให้เพิ่มเงื่อนไข `AND`
+        if (status && status !== "all") {
+            request.input('Status', sql.NVarChar, status);
+            baseQuery += ` AND STATUS = @Status`;
+        }
+
+        // ✅ ต้องแน่ใจว่า `ORDER BY` อยู่ที่ท้ายสุดเสมอ
+        baseQuery += ` ORDER BY RowNum;`;
+
+                const totalRecordsQuery = `
+                    SELECT COUNT(*) AS total 
+                    FROM Stock_Summary WITH (NOLOCK)
+                    WHERE BRANCH_CODE = @Branch 
+                    AND DI_DATE = (
+                        SELECT MAX(DI_DATE) 
+                        FROM Stock_Summary WITH (NOLOCK) 
+                        WHERE BRANCH_CODE = @Branch
+                    )
+                `;
         const totalRecords = (await request.query(totalRecordsQuery)).recordset[0].total;
 
         const result = await request.query(baseQuery);
@@ -306,72 +343,77 @@ app.post('/api/save-preparation', async (req, res) => {
     const { DI_REF, ProductCode, PreparedQty, Username, branch } = req.body;
     const PreparedBy = Username || "ระบบ"; // ให้ดึงจาก session user หรือใส่ "ระบบ" ถ้าไม่มีค่า
 
-    try {
-        if (!DI_REF || !ProductCode || PreparedQty === undefined) {
-            return res.status(400).json({ success: false, message: "Missing required fields" });
-        }
-
-        const pool = await getPool("TestOng");
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
-
-        // ✅ อัปเดต `stock_summary`
-        await transaction.request()
-        .input('DI_REF', sql.NVarChar, DI_REF)
-        .input('SKU_CODE', sql.NVarChar, ProductCode)
-        .input('LATEST_PREPARE_QTY', sql.Int, PreparedQty)
-        .input('UPDATE_DATE', sql.DateTime, new Date())
-        .input('UPDATE_BY', sql.NVarChar, PreparedBy)
-        .input('STATUS', sql.NVarChar, "2")
-        .input('BRANCH_CODE',sql.VarChar, branch)
-        .query(`
-            UPDATE stock_summary
-            SET 
-                LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY, 
-                STATUS = @STATUS, 
-                UPDATE_DATE = @UPDATE_DATE, 
-                UPDATE_BY = @UPDATE_BY
-            WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
-            AND BRANCH_CODE = @BRANCH_CODE
-        `);
-
-        // ✅ ดึงค่า ICCAT_CODE และ ICCAT_NAME จาก stock_summary
-        const iccatQuery = await transaction.request()
-        .input('DI_REF', sql.NVarChar, DI_REF)
-        .input('SKU_CODE', sql.NVarChar, ProductCode)
-        .query(`
-            SELECT ICCAT_CODE, ICCAT_NAME 
-            FROM stock_summary 
-            WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
-        `);
-
-    const { ICCAT_CODE, ICCAT_NAME } = iccatQuery.recordset[0] || { ICCAT_CODE: null, ICCAT_NAME: null };
-
-    // ✅ ถ้าหาไม่เจอให้แจ้งเตือนและไม่ทำการ INSERT
-    if (!ICCAT_CODE || !ICCAT_NAME) {
-    throw new Error(`ICCAT_CODE หรือ ICCAT_NAME ไม่พบสำหรับ SKU_CODE: ${ProductCode}`);
+    if (!DI_REF || !ProductCode || PreparedQty === undefined) {
+        return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    // ✅ บันทึกข้อมูลลง preparationRecords
-    await transaction.request()
-    .input('DI_REF', sql.NVarChar, DI_REF)
-    .input('SKU_CODE', sql.NVarChar, ProductCode)
-    .input('ICCAT_CODE', sql.NVarChar, ICCAT_CODE) // ✅ เพิ่ม ICCAT_CODE
-    .input('ICCAT_NAME', sql.NVarChar, ICCAT_NAME) // ✅ เพิ่ม ICCAT_NAME
-    .input('PREPARE_QTY', sql.Int, PreparedQty)
-    .input('PreparedBy', sql.NVarChar, PreparedBy)
-    .input('Timestamp', sql.DateTime, new Date())
-    .input('Status', sql.NVarChar, "2")
-    .query(`
-        INSERT INTO preparationRecords (DI_REF, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
-        VALUES (@DI_REF, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
-    `);
+    let transaction;
+    try {
+        const pool = await getPool("TestOng");
+        transaction = new sql.Transaction(pool);
+        await transaction.begin();
+        const request = new sql.Request(transaction);
+
+        // ✅ อัปเดต `stock_summary`
+        await request
+            .input('DI_REF', sql.NVarChar, DI_REF)
+            .input('SKU_CODE', sql.NVarChar, ProductCode)
+            .input('LATEST_PREPARE_QTY', sql.Int, PreparedQty)
+            .input('UPDATE_DATE', sql.DateTime, new Date())
+            .input('UPDATE_BY', sql.NVarChar, PreparedBy)
+            .input('STATUS', sql.NVarChar, "2")
+            .input('BRANCH_CODE', sql.VarChar, branch)
+            .query(`
+                UPDATE stock_summary
+                SET 
+                    LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY, 
+                    STATUS = @STATUS, 
+                    UPDATE_DATE = @UPDATE_DATE, 
+                    UPDATE_BY = @UPDATE_BY
+                WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+                AND BRANCH_CODE = @BRANCH_CODE
+            `);
+
+        // ✅ ดึงค่า ICCAT_CODE และ ICCAT_NAME จาก stock_summary
+        const iccatQuery = await request
+            .input('DI_REF', sql.NVarChar, DI_REF)
+            .input('SKU_CODE', sql.NVarChar, ProductCode)
+            .query(`
+                SELECT ICCAT_CODE, ICCAT_NAME 
+                FROM stock_summary 
+                WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+            `);
+
+        if (iccatQuery.recordset.length === 0) {
+            throw new Error("❌ ICCAT_CODE หรือ ICCAT_NAME ไม่พบใน stock_summary");
+        }
+
+        // ✅ บันทึกข้อมูลลง preparationRecords
+        await request
+            .input('DI_REF', sql.NVarChar, DI_REF)
+            .input('SKU_CODE', sql.NVarChar, ProductCode)
+            .input('ICCAT_CODE', sql.NVarChar, iccatQuery.recordset[0].ICCAT_CODE)
+            .input('ICCAT_NAME', sql.NVarChar, iccatQuery.recordset[0].ICCAT_NAME)
+            .input('PREPARE_QTY', sql.Int, PreparedQty)
+            .input('PreparedBy', sql.NVarChar, PreparedBy)
+            .input('Timestamp', sql.DateTime, new Date())
+            .input('Status', sql.NVarChar, "2")
+            .query(`
+                INSERT INTO preparationRecords 
+                (DI_REF, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
+                VALUES (@DI_REF, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
+            `);
 
         await transaction.commit();
         res.json({ success: true, message: "Preparation saved successfully!" });
 
     } catch (error) {
-        console.error("Error saving preparation:", error);
+        console.error("❌ Error saving preparation:", error);
+
+        if (transaction) {
+            await transaction.rollback();
+        }
+
         res.status(500).json({ success: false, message: "Database error", error: error.message });
     }
 });
@@ -488,145 +530,85 @@ app.post('/insert-stock-data', async (req, res) => {
         return res.status(400).json({ success: false, message: "Invalid data format" });
     }
 
+    let transaction;
     try {
         let pool = await getPool("TestOng");
-        const transaction = new sql.Transaction(pool);
+        transaction = new sql.Transaction(pool);
         await transaction.begin();
 
-        const request = new sql.Request(transaction);
-
-        for (const [index, item] of data.entries()) {
-            // Insert data into Stock table
-
-            await request
-                .input(`SRefNo_${index}`, sql.VarChar, item.RefNo)
-                .input(`SRound_${index}`, sql.Int, item.Round)
-                .input(`SLocation_${index}`, sql.VarChar, item.Location)
-                .input(`SRefDate_${index}`, sql.Date, item.RefDate.split("-").reverse().join("-"))
-                .input(`SProductCode_${index}`, sql.VarChar, item.ProductCode)
-                .input(`SProductName_${index}`, sql.NVarChar, item.ProductName)
-                .input(`SQuantitySold_${index}`, sql.Int, item.QuantitySold)
-                .input(`SCheckQTY_${index}`, sql.Int, item.CheckQTY)
-                .input(`SBRANCHCODE_${index}`, sql.VarChar, item.BRANCHCODE) 
-                .input(`SCreateBy_${index}`, sql.VarChar, item.CreateBy)
-                .query(`
-                    INSERT INTO Stock 
-                    (DI_REF, CHECKROUND, DI_DATE, SKU_WL, SKU_CODE, SKU_NAME, SKU_QTY, CR_QTY, BRANCH_CODE, CREATE_BY, UPDATE_DATE, UPDATE_BY)
-                    VALUES 
-                    (@SRefNo_${index}, @SRound_${index}, @SRefDate_${index},  @SLocation_${index}, @SProductCode_${index}, @SProductName_${index}, 
-                    @SQuantitySold_${index}, @SCheckQTY_${index}, @SBRANCHCODE_${index}, @SCreateBy_${index}, GETDATE(), @SCreateBy_${index})
-                `);
-
-            // Calculate remaining quantity and insert into Stock_Summary table
-            // const remainingQuantity = item.QuantitySold - item.CheckQTY;  // Calculating remaining quantity
-            const CRQTY = item.TotalCR + item.CheckQTY;
-            const statusMapping = {
-                "รอสโตร์ตรวจจ่าย": '5',
-                "รอการตรวจจ่าย": '2',
-                "รอการจัดเตรียม": '1',
-                "จัดเตรียมเรียบร้อย": '3',
-                "ตรวจจ่ายเรียบร้อย": '4'
-            };
+        const batchSize = 100;  // ✅ ป้องกัน SQL parameter overflow
+        for (let i = 0; i < data.length; i += batchSize) {
+            const batch = data.slice(i, i + batchSize);
             
-            const statusValue = statusMapping[item.Status] || '0'; // ✅ ถ้าไม่พบค่า ใช้ 0 (กรณีผิดพลาด)
+            // ✅ จัดเตรียมข้อมูลสำหรับ INSERT
+            let insertValues = batch
+                .filter(item => item.ID == 0) // เลือกเฉพาะที่ต้อง INSERT
+                .map(item => `(
+                    '${item.RefNo}', ${item.Round}, '${item.RefDate.split("-").reverse().join("-")}', 
+                    '${item.Location}', '${item.ProductCode}', N'${item.ProductName}', 
+                    ${item.QuantitySold}, ${item.TotalCR + item.CheckQTY}, 
+                    ${item.RemainQTY}, ${item.LatestPPQTY || 0}, 
+                    '${getStatusValue(item.Status)}', '${item.CreateBy}', GETDATE(), 
+                    '${item.CreateBy}', '${item.CATCODE}', '${item.CATNAME}', '${item.BRANCHCODE}'
+                )`).join(",");
 
-            if(item.ID==0){
-                
-                
-                await request
-                .input(`DI_REF_${index}`, sql.VarChar, item.RefNo)
-                .input(`DI_DATE_${index}`, sql.Date, item.RefDate.split("-").reverse().join("-"))
-                .input(`SKU_WL_${index}`, sql.VarChar, item.Location)
-                .input(`ICCAT_KEY_${index}`, sql.Int, item.CATKEY)
-                .input(`LTRound_${index}`, sql.Int, item.Round)
-
-                // .input(`RefDate_${index}`, sql.Date, item.RefDate.split("-").reverse().join("-"))
-                .input(`ProductCode_${index}`, sql.VarChar, item.ProductCode)
-                .input(`ProductName_${index}`, sql.NVarChar, item.ProductName)
-                .input(`QuantitySold_${index}`, sql.Int, item.QuantitySold)
-                .input(`TOTAL_CR_QTY_${index}`, sql.Int, CRQTY)      // Total CR quantity
-                .input(`REMAINING_QTY_${index}`, sql.Int, item.RemainQTY) // Remaining quantity
-                .input(`LATEST_PREPARE_QTY_${index}`, sql.Int, item.LatestPPQTY)
-                .input(`Status_${index}`, sql.NVarChar, statusValue)
-                .input(`CreateBy_${index}`, sql.VarChar, item.CreateBy)
-                .input(`ICCAT_CODE_${index}`, sql.NVarChar, item.CATCODE)
-                .input(`ICCAT_NAME_${index}`, sql.NVarChar, item.CATNAME)
-                .input(`BRANCH_CODE_${index}`, sql.VarChar, item.BRANCHCODE)
-                .query(`
-                    INSERT INTO
-                        Stock_Summary (
-                            DI_REF,
-                            DI_DATE,
-                            SKU_WL,
-                            ICCAT_KEY,
-                            LATEST_ROUND,
-                            SKU_CODE,
-                            SKU_NAME,
-                            TOTAL_SKU_QTY,
-                            TOTAL_CR_QTY,
-                            REMAINING_QTY,
-                            LATEST_PREPARE_QTY,
-                            status,
-                            CREATE_BY,
-                            UPDATE_DATE,
-                            UPDATE_BY,
-                            ICCAT_CODE,
-                            ICCAT_NAME,
-                            BRANCH_CODE
-                        ) VALUES (
-                            @DI_REF_${index},
-                            @DI_DATE_${index},
-                            @SKU_WL_${index},
-                            @ICCAT_KEY_${index},
-                            @LTRound_${index},
-                            @ProductCode_${index},
-                            @ProductName_${index}, 
-                            @QuantitySold_${index},
-                            @TOTAL_CR_QTY_${index},
-                            @REMAINING_QTY_${index},
-                            @LATEST_PREPARE_QTY_${index},
-                            @Status_${index},
-                            @CreateBy_${index},
-                            GETDATE(),
-                            @CreateBy_${index},
-                            @ICCAT_CODE_${index},
-                            @ICCAT_NAME_${index},
-                            @BRANCH_CODE_${index}
-                        )
-                `);
-            }else{
-                await request
-                .input(`ident_${index}`, sql.Int, item.ID)
-                .input(`CKROUND_${index}`, sql.Int, item.Round)
-                .input(`LATEST_PREPARE_QTY_${index}`, sql.Int, item.LatestPPQTY)
-                .input(`Status_${index}`, sql.NVarChar, statusValue)
-                .input(`TOTAL_CR_QTY_${index}`, sql.Int, CRQTY)      // Total CR quantity
-                .input(`REMAINING_QTY_${index}`, sql.Int, item.RemainQTY) // Remaining quantity
-                .input(`Updateby_${index}`, sql.VarChar, item.CreateBy)
-                .query(`
-                    UPDATE Stock_Summary 
-                    SET 
-                        LATEST_ROUND = @CKROUND_${index},
-                        TOTAL_CR_QTY = @TOTAL_CR_QTY_${index},
-                        REMAINING_QTY = @REMAINING_QTY_${index},
-                        LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY_${index},
-                        status = @Status_${index},
-                        UPDATE_DATE = GETDATE(),
-                        UPDATE_BY = @Updateby_${index}
-                    WHERE id = @ident_${index}
+            if (insertValues) {
+                await pool.request().query(`
+                    INSERT INTO Stock_Summary (
+                        DI_REF, LATEST_ROUND, DI_DATE, SKU_WL, SKU_CODE, SKU_NAME, 
+                        TOTAL_SKU_QTY, TOTAL_CR_QTY, REMAINING_QTY, LATEST_PREPARE_QTY, 
+                        status, CREATE_BY, UPDATE_DATE, UPDATE_BY, 
+                        ICCAT_CODE, ICCAT_NAME, BRANCH_CODE
+                    ) VALUES ${insertValues};
                 `);
             }
-            
+
+            // ✅ จัดเตรียมข้อมูลสำหรับ UPDATE
+            let updateQueries = batch
+                .filter(item => item.ID != 0) // เลือกเฉพาะที่ต้อง UPDATE
+                .map(item => `
+                    UPDATE Stock_Summary 
+                    SET 
+                        LATEST_ROUND = ${item.Round}, 
+                        TOTAL_CR_QTY = ${item.TotalCR + item.CheckQTY}, 
+                        REMAINING_QTY = ${item.RemainQTY}, 
+                        LATEST_PREPARE_QTY = ${item.LatestPPQTY || 0}, 
+                        status = '${getStatusValue(item.Status)}', 
+                        UPDATE_DATE = GETDATE(), 
+                        UPDATE_BY = '${item.CreateBy}'
+                    WHERE id = ${item.ID};
+                `).join(" ");
+
+            if (updateQueries) {
+                await pool.request().query(updateQueries);
+            }
         }
 
         await transaction.commit();
-        res.json({ success: true, message: "Data inserted successfully" });
+        res.json({ success: true, message: "Data inserted/updated successfully" });
+
     } catch (err) {
         console.error("Database error:", err);
-        await transaction.rollback();
-        res.status(500).json({ success: false, message: "Failed to insert data" });
+
+        if (transaction) {
+            await transaction.rollback();
+        }
+
+        res.status(500).json({ success: false, message: "Failed to insert/update data" });
     }
 });
+
+// ✅ ฟังก์ชันแปลงค่า `status`
+function getStatusValue(status) {
+    const statusMapping = {
+        "รอสโตร์ตรวจจ่าย": '5',
+        "รอการตรวจจ่าย": '2',
+        "รอการจัดเตรียม": '1',
+        "จัดเตรียมเรียบร้อย": '3',
+        "ตรวจจ่ายเรียบร้อย": '4'
+    };
+    return statusMapping[status] || '0'; // ✅ ถ้าไม่พบค่า ใช้ 0 (ป้องกัน error)
+}
 
 app.post("/api/get-stock-transactions", async (req, res) => {
     try {

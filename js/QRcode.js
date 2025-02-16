@@ -215,28 +215,50 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
 
         // ส่งข้อมูลไปยัง Backend
         try {
-            const response = await fetch('/insert-stock-data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data })
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                // alert("Data inserted successfully!");
-                document.getElementById("insertStockButton").hidden=true;
-                document.getElementById("printButton").disabled=false;
-                document.getElementById("printButton").hidden=false;
-                // document.getElementById("printButton").disabled=false;
+            const batchSize = 50; // ✅ กำหนดจำนวน batch ที่ส่งต่อครั้ง
+            const batches = [];
+            
+            for (let i = 0; i < data.length; i += batchSize) {
+                batches.push(data.slice(i, i + batchSize));
+            }
+        
+            // ✅ ใช้ Promise.all() เพื่อส่งหลาย batch พร้อมกัน
+            const responses = await Promise.all(batches.map(async batch => {
+                try {
+                    const response = await fetch('/insert-stock-data', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: batch })
+                    });
+        
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+        
+                    return await response.json();
+                } catch (err) {
+                    console.error("Error inserting batch:", err);
+                    return { success: false, message: "Batch insert failed" };
+                }
+            }));
+        
+            // ✅ ตรวจสอบว่ามี batch ไหนล้มเหลวบ้าง
+            const failedBatches = responses.filter(result => !result.success);
+            
+            if (failedBatches.length === 0) {
+                document.getElementById("insertStockButton").hidden = true;
+                document.getElementById("printButton").disabled = false;
+                document.getElementById("printButton").hidden = false;
                 tabledisable();
-                // showAlert("บันทีกข้อมูลตรวจจ่ายเรียบร้อย");
+                alert("✅ Data inserted successfully!");
             } else {
-                alert(`Insert failed: ${result.message}`);
+                alert(`⚠️ Some batches failed: ${failedBatches.length} batches`);
             }
         } catch (err) {
-            console.error("Error inserting data:", err);
-            alert("Failed to insert data. Please try again.");
+            console.error("❌ Error inserting data:", err);
+            alert("❌ Failed to insert data. Please try again.");
         }
+        
 
         
     });

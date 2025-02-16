@@ -16,15 +16,16 @@ async function searchPreparation() {
             "type": "POST",
             "contentType": "application/json",
             "data": function (d) {
-                return JSON.stringify({
-                    category: document.getElementById("filterCategory").value,
-                    status: document.getElementById("filterStatus").value,
-                    documentID: document.getElementById("filterDocument").value,
-                    branch: localStorage.getItem("branch_code"),
-                    start: d.start,
-                    length: d.length
-                });
-            },
+    const selectedStatus = document.getElementById("filterStatus").value;
+    return JSON.stringify({
+        category: document.getElementById("filterCategory").value,
+        status: selectedStatus !== "all" ? selectedStatus : "all", // ✅ ใช้ค่าจาก dropdown
+        documentID: document.getElementById("filterDocument").value,
+        branch: localStorage.getItem("branch_code"),
+        start: d.start,
+        length: d.length
+    });
+},
                 "dataSrc": function (json) {
             console.log("✅ จำนวนข้อมูลที่ API ส่งมา:", json.data.length);
             return json.data;
