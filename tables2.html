@@ -200,7 +200,7 @@
                                         <div class="col-auto mr-auto"></div>
                                         <div class="col-auto">
                                             <button id="searchButton" class="btn btn-primary" type="submit">
-                                                ต้นหา
+                                                ค้นหา
                                             </button>
                                         </div>    
                                     </div>
@@ -327,33 +327,11 @@
 <script>
         
         
-    function searchPreparation() {
-        const username = localStorage.getItem("username"); // ✅ ดึง username จาก localStorage
-        if (!username) {
-            alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
-            window.location.href = '/'; // ✅ ถ้ายังไม่ได้ login ให้ redirect
-            return;
-        }
-
-        fetch('/api/search-preparation', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                category: document.getElementById("filterCategory").value,
-                username: username // ✅ ส่ง username ไปที่ API
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log("🔍 Data received:", data);
-            updateTable(data.data);
-        })
-        .catch(error => console.error("❌ API Error:", error));
-    }
+    
 
     window.onload = function() {
-        const username = localStorage.getItem('username');
-        if (!username) {
+        const username2 = localStorage.getItem('username');
+        if (!username2) {
             window.location.href = '/'; // ✅ ถ้ายังไม่ได้ login ให้ redirect
         }
     };
@@ -363,7 +341,7 @@
         window.location.href = '/';
     });
 
-    document.getElementById("searchButton").addEventListener("click", searchPreparation);
+    // document.getElementById("searchButton").addEventListener("click", searchPreparation);
 
 
 

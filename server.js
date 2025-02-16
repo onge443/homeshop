@@ -59,19 +59,7 @@ async function getPool(dbName) {
     return pools[dbName];
 }
 
-async function getUserDatabase(username) {
-    const pool = await getPool("TestOng");
-    const result = await pool.request()
-        .input("username", sql.NVarChar, username)
-        .query("SELECT branch_code FROM users WHERE username = @username");
 
-    if (result.recordset.length > 0) {
-        const branchCode = result.recordset[0].branch_code;
-        if (branchCode === 'HS54') return "HS54";
-        if (branchCode === 'HSPK') return "HSPK";
-    }
-    return null;
-}
 // เชื่อมต่อฐานข้อมูล
 // sql.connect(config).then(() => {
 //     console.log('Connected to the database successfully!');
@@ -209,7 +197,7 @@ app.get('/api/get-stock-status', async (req, res) => {
 app.get('/api/product-categories', async (req, res) => {
     try {
         const pool = await getPool("HS54"); // ✅ เชื่อมต่อ HS54
-        const result = await pool.request().query("SELECT ICCAT_KEY, ICCAT_NAME FROM ICCAT ORDER BY ICCAT_NAME");
+        const result = await pool.request().query("SELECT ICCAT_KEY, ICCAT_NAME FROM ICCAT WHERE LEFT(ICCAT_CODE, 1) IN ('A', 'B', 'K', 'R', 'M', 'O', 'P', 'S', 'T', 'V', 'W') ORDER BY ICCAT_NAME");
         res.json({ success: true, data: result.recordset });
     } catch (error) {
         console.error("❌ Error fetching product categories from HS54:", error);
@@ -217,50 +205,82 @@ app.get('/api/product-categories', async (req, res) => {
     }
 });
 
+
 app.post('/api/search-preparation', async (req, res) => {
-    const { category, status, documentId } = req.body;
-
     try {
-        const dbName = await getUserDatabase(username); // ✅ หาว่าต้องใช้ฐานข้อมูลไหน
-        if (!dbName) return res.status(400).json({ success: false, message: "ไม่พบฐานข้อมูลของผู้ใช้" });
-
-        const pool = await getPool(dbName);
+        const { category, status, documentID, branch, start, length } = req.body;
+        const pool = await getPool('TestOng');
         const request = pool.request();
 
-        if (category && category !== "all") {
-            request.input('Category', sql.NVarChar, category);
-        }
+        request.input('Branch', sql.VarChar, branch);
+        if (category && category !== "all") request.input('Category', sql.NVarChar, category);
+        if (status && status !== "all") request.input('Status', sql.NVarChar, status);
+        if (documentID) request.input('documentID', sql.VarChar, documentID);
+        request.input('start', sql.Int, start);
+        request.input('length', sql.Int, length);
 
+        // ✅ ใส่ `;` เพื่อป้องกัน Syntax Error
         let query = `
-            SELECT 
-                DI_REF AS DocumentID,
-                DI_DATE,
-                SKU_CODE,
-                SKU_NAME,
-                ICCAT_KEY AS ProductCategory,
-                ICCAT_CODE AS ProductCategoryCode,
-                ICCAT_NAME AS ProductCategoryName,
-                TOTAL_SKU_QTY AS SoldQty,
-                0 AS ReceivedQty,
-                REMAINING_QTY AS PendingQty,
-                LATEST_PREPARE_QTY,
-                STATUS
-            FROM Stock_Summary
-            WHERE STATUS = 'รอการจัดเตรียม'
+            ;WITH StockCTE AS (
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY DI_DATE DESC, DI_REF) AS RowNum,
+                    DI_REF AS DocumentID, 
+                    DI_DATE, SKU_CODE, SKU_NAME, ICCAT_NAME AS ProductCategoryName,
+                    TOTAL_SKU_QTY AS SoldQty, 0 AS ReceivedQty, REMAINING_QTY AS PendingQty,
+                    LATEST_PREPARE_QTY, STATUS, SKU_WL
+                FROM Stock_Summary WITH (NOLOCK)
+                WHERE BRANCH_CODE = @Branch 
+                AND SKU_WL IN ('คลังสินค้า','สโตร์/คลัง')
+                AND DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary WHERE BRANCH_CODE = @Branch)
+            )
+            SELECT * FROM StockCTE WHERE RowNum BETWEEN @start AND (@start + @length - 1)
         `;
 
-        if (category && category !== "all") {
-            query += ` AND ICCAT_KEY = @Category`;
-        }
+        // ✅ แก้ไข WHERE ไม่ให้เกิด `AND ()`
+        if (category && category !== "all") query += ` AND ProductCategoryName = @Category`;
+        if (documentID) query += ` AND DocumentID = @documentID`;
+        //         }else{
+        //             query += `AND DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary WHERE BRANCH_CODE = 'HS54')`;
+        //             // บน PRD ต้องใช้้อันล่างนี้
+        //             // query += ` AND DI_DATE = CAST(GETDATE() AS DATE)`;
+        //         }
 
-        const result = await request.query(query);
-        res.json({ success: true, data: result.recordset || [] });
+        if (status && status !== "all") query += ` AND STATUS = @Status`;
+
+        // ✅ ใช้ CTE ให้ถูกต้องสำหรับ COUNT
+        let totalQuery = `
+            ;WITH StockCTE AS (
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY DI_DATE DESC, DI_REF) AS RowNum
+                FROM Stock_Summary WITH (NOLOCK)
+                WHERE BRANCH_CODE = @Branch 
+                AND SKU_WL IN ('คลังสินค้า','สโตร์/คลัง')
+                AND DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary WHERE BRANCH_CODE = @Branch)
+            )
+            SELECT COUNT(*) AS total FROM StockCTE
+        `;
+
+        let paginatedQuery = `${query} ORDER BY RowNum OFFSET @start ROWS FETCH NEXT @length ROWS ONLY`;
+
+        const totalRecords = (await request.query(totalQuery)).recordset[0].total;
+        const result = await request.query(paginatedQuery);
+
+        res.json({
+            draw: req.body.draw,
+            recordsTotal: totalRecords,
+            recordsFiltered: totalRecords,
+            data: result.recordset
+        });
 
     } catch (error) {
-        console.error("❌ Database Error:", error);
+        console.error("Database Error:", error);
         res.status(500).json({ success: false, message: "Database error", error: error.message });
     }
 });
+
+
+
+
 
 app.get('/api/status-list', async (req, res) => {
     try {
@@ -277,7 +297,7 @@ app.get('/api/status-list', async (req, res) => {
 });
 
 app.post('/api/save-preparation', async (req, res) => {
-    const { DI_REF, ProductCode, PreparedQty, Username } = req.body;
+    const { DI_REF, ProductCode, PreparedQty, Username, branch } = req.body;
     const PreparedBy = Username || "ระบบ"; // ให้ดึงจาก session user หรือใส่ "ระบบ" ถ้าไม่มีค่า
 
     try {
@@ -285,7 +305,7 @@ app.post('/api/save-preparation', async (req, res) => {
             return res.status(400).json({ success: false, message: "Missing required fields" });
         }
 
-        const pool = await getPool("TestOng");;
+        const pool = await getPool("TestOng");
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
 
@@ -297,6 +317,7 @@ app.post('/api/save-preparation', async (req, res) => {
         .input('UPDATE_DATE', sql.DateTime, new Date())
         .input('UPDATE_BY', sql.NVarChar, PreparedBy)
         .input('STATUS', sql.NVarChar, "จัดเตรียมสำเร็จ")
+        .input('BRANCH_CODE',sql.VarChar, branch)
         .query(`
             UPDATE stock_summary
             SET 
@@ -305,6 +326,7 @@ app.post('/api/save-preparation', async (req, res) => {
                 UPDATE_DATE = @UPDATE_DATE, 
                 UPDATE_BY = @UPDATE_BY
             WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+            AND BRANCH_CODE = @BRANCH_CODE
         `);
 
         // ✅ ดึงค่า ICCAT_CODE และ ICCAT_NAME จาก stock_summary
@@ -355,8 +377,9 @@ app.post('/search1', async (req, res) => {
     if (!reference) {
         return res.status(400).json({ success: false, message: 'Reference is required' });
     }
-
+    
     try {
+        // ✅ เลือกฐานข้อมูลตาม branch_code
         const pool = await getPool("TestOng");
 
         // เช็คข้อมูลจาก QUERY1
@@ -671,6 +694,7 @@ app.post("/api/update-stock-transaction", async (req, res) => {
                 UPDATE_DATE = GETDATE()
             WHERE ID = @ID
         `;
+
         const updateStockRequest = new sql.Request(transaction);
         updateStockRequest.input("NEWCRQTY", sql.Int, NEW_CR_QTY);
         updateStockRequest.input("UPDATEBY", sql.VarChar, Username);
@@ -703,7 +727,22 @@ app.post("/api/update-stock-transaction", async (req, res) => {
     }
 });
 
+async function getUserDatabase(username) {
+    const pool = await getPool("TestOng");
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    const branchQuery = `SELECT branch_code FROM users WHERE username = @username`;
+    const branchRequest = new sql.Request(transaction);
+    branchRequest.input("username",  sql.VarChar, username);
+    const branchResult = await branchRequest.query(branchQuery);
 
+    if (branchResult.recordset.length > 0) {
+        const branchCode = branchResult.recordset[0].branch_code;
+        if (branchCode === 'HS54') return "HS54";
+        if (branchCode === 'HSPK') return "HSPK";
+    }
+    return null;
+}
 
 
 
