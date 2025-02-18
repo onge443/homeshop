@@ -71,7 +71,7 @@
             </li>
 
             <!-- Nav Item - Charts -->
-            <li class="nav-item">
+            <li class="nav-item" id = "Report">
                 <a class="nav-link" href="charts">
                     <i class="fas fa-fw fa-chart-area"></i>
                     <span>รายงาน</span></a>
@@ -131,7 +131,7 @@
                         <li class="nav-item dropdown no-arrow">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <span class="mr-2 d-none d-lg-inline text-gray-600 small">Douglas McGee</span>
+                                <span class="mr-2 d-none d-lg-inline text-gray-600 small"></span>
                                 <img class="img-profile rounded-circle"
                                     src="img/undraw_profile.svg">
                             </a>
@@ -332,10 +332,10 @@
 let table; // ✅ เก็บ instance ของ DataTables
 
 function loadPreparationTable() {
-    console.log("🔎 กำลังค้นหาข้อมูล...");
+    // console.log("🔎 กำลังค้นหาข้อมูล...");
 
     if ($.fn.DataTable.isDataTable("#resultstock")) {
-        console.log("🔄 DataTable มีอยู่แล้ว กำลังลบและโหลดใหม่...");
+        // console.log("🔄 DataTable มีอยู่แล้ว กำลังลบและโหลดใหม่...");
         $('#resultstock').DataTable().destroy();
         $('#resultstock tbody').empty();
     } else {

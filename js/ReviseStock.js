@@ -1,11 +1,36 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const username = localStorage.getItem("username");
+    const branch = localStorage.getItem("branch_code");
+    // const username = localStorage.getItem("username");
+    // const branch = localStorage.getItem("branch_code");
+    // const rights = localStorage.getItem("user_rights");
+    // CheckRight();
+    if (username) {
+        document.querySelector("#userDropdown span").textContent = username;
+    }else{
+        alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+        window.location.href = '/';
+        return;
+    }
+
+    
+    // if (!rights) {
+    //     alert("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
+    //     document.getElementById("searchButton").disabled = false;
+    //     window.location.href = '/';
+    //     return;
+    // }
+
+    
+
     document.getElementById("searchButton").addEventListener("click", async () => {
         const DI_REF = document.getElementById("filterDI_REF").value.trim();
         const CHECKROUND = document.getElementById("filterCHECKROUND").value.trim();
         
         const searchParams = {
             DI_REF: DI_REF || null,
-            CHECKROUND: CHECKROUND ? parseInt(CHECKROUND, 10) : null
+            CHECKROUND: CHECKROUND ? parseInt(CHECKROUND, 10) : null,
+            BRANCH: branch
         };
 
         try {
@@ -93,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         SKU_CODE: item.SKU_CODE,
                         NEW_CR_QTY: updatedQty,
                         Username: username,
+                        BranchCode: branch
                     };
 
                     try {
@@ -123,3 +149,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+async function CheckRight() {
+        
+    const rights = localStorage.getItem("user_rights");
+
+    try {
+        if (rights == 'user') {
+            document.getElementById("Report").hidden = true;
+            return;
+        }
+
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+CheckRight();

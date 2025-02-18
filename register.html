@@ -80,7 +80,7 @@
                         option.textContent = branch.branch_name;
                         branchSelect.appendChild(option);
                     });
-                    console.log("Branches loaded:", result.data);
+                    // console.log("Branches loaded:", result.data);
 
             // ✅ บังคับให้ UI รีเฟรช
                 requestAnimationFrame(() => {
@@ -127,7 +127,7 @@
             const firstname = document.getElementById("firstname").value.trim();
             const lastname = document.getElementById("lastname").value.trim();
             const branch_code = document.getElementById("branch_code").value;
-            const branch_name = getSelectedBranchName();
+            const branch_name =  document.getElementById("branch_code").textContent;
 
             if (!firstname || !lastname || !username || !password || !branch_code) {
                 alert("กรุณากรอกข้อมูลให้ครบถ้วน");

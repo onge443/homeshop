@@ -1,12 +1,11 @@
 async function searchPreparation() {
-    const username = localStorage.getItem("username");
+    
     const branch = localStorage.getItem("branch_code");
+    
 
-    if (!username) {
-        alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
-        window.location.href = '/';
-        return;
-    }
+    
+
+
 
     $('#resultstock').DataTable({
         "processing": true,
@@ -174,7 +173,36 @@ document.addEventListener("click", async (event) => {
         }
     }
 });
+async function PrepareCheckRight() {
+    const username = localStorage.getItem("username");
+    const rights = localStorage.getItem("user_rights");
+
+    try {
+        if (username) {
+            document.querySelector("#userDropdown span").textContent = username;
+        }else{
+            alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+            window.location.href = '/';
+            return;
+        }
+        if (rights == 'user') {
+            document.getElementById("Report").hidden = true;
+            return;
+        }
+
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+document.getElementById('logoutButton').addEventListener('click', function() {
+    localStorage.clear();
+    window.location.href = '/';
+});
+
+PrepareCheckRight();
 // ✅ โหลดข้อมูลเมื่อเปิดหน้าเว็บ
 loadStatusList();
 loadProductCategories();
+
 document.getElementById("searchButton").addEventListener("click", searchPreparation);

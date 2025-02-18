@@ -1,5 +1,11 @@
 document.addEventListener("DOMContentLoaded", function () {
 // Create Html5Qrcode instance
+CheckQTYCheckRight();
+
+// ดึงค่า username จาก localStorage
+
+  
+
 const html5QrCode = new Html5Qrcode("reader");
             
 // Function when QR Code scan is successful
@@ -682,4 +688,30 @@ function updateTable(result) {
     }
 }
 });
+
+async function CheckQTYCheckRight() {
+    
+    const rights = localStorage.getItem("user_rights");
+    const username = localStorage.getItem("username");
+    try {
+        if (username) {
+            document.querySelector("#userDropdown span").textContent = username;
+        }else{
+            alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+            window.location.href = '/';
+            return;
+        }
+    
+        if (rights == 'user') {
+            document.getElementById("Report").hidden = true;
+            return;
+        }
+
+
+
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+// CheckQTYCheckRight();
 

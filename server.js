@@ -221,22 +221,6 @@ app.get('/api/branches', async (req, res) => {
     }
 });
 
-// app.get('/api/get-stock-status', async (req, res) => {
-//     try {
-//         const pool = await getPool("TestOng");
-//         const result = await pool.request().query(`
-//             SELECT DI_REF, SKU_NAME, LATEST_PREPARE_QTY, STATUS
-//             FROM stock_summary
-//             WHERE STATUS != 'ตรวจจ่ายเรียบร้อย'  -- ✅ กรองที่ SQL
-//             ORDER BY UPDATE_DATE DESC
-//         `);
-
-//         res.json({ success: true, data: result.recordset });
-//     } catch (error) {
-//         console.error("Error fetching stock status:", error);
-//         res.status(500).json({ success: false, message: "Database error" });
-//     }
-// });
 
 app.get('/api/product-categories', async (req, res) => {
     try {
@@ -742,10 +726,10 @@ function getStatusValue(status) {
 
 app.post("/api/get-stock-transactions", async (req, res) => {
     try {
-        const { DI_REF, CHECKROUND } = req.body;
+        const { DI_REF, CHECKROUND, BRANCH } = req.body;
         const pool = await getPool("TestOng");
         const request = pool.request();
-
+        request.input("BRANCH", sql.VarChar, BRANCH);
         let query = `
             SELECT 
                 s.ID, s.DI_REF, s.CHECKROUND, s.SKU_WL, 
@@ -758,7 +742,7 @@ app.post("/api/get-stock-transactions", async (req, res) => {
             FROM Stock s
             LEFT JOIN Users u ON s.CREATE_BY = u.username
             LEFT JOIN stock_summary ss ON s.DI_REF = ss.DI_REF AND s.SKU_CODE = ss.SKU_CODE
-            WHERE 1=1
+            WHERE 1=1 and s.branch_code = @BRANCH
         `;
 
         if (DI_REF) {
@@ -784,9 +768,9 @@ app.post("/api/get-stock-transactions", async (req, res) => {
 
 
 app.post("/api/update-stock-transaction", async (req, res) => {
-    const { ID, DI_REF, SKU_CODE, NEW_CR_QTY, Username } = req.body;
+    const { ID, DI_REF, SKU_CODE, NEW_CR_QTY, Username, BranchCode } = req.body;
     // console.error("Check:", req.body);
-    if (!ID || !DI_REF || !SKU_CODE || NEW_CR_QTY === undefined || !Username) {
+    if (!ID || !DI_REF || !SKU_CODE || NEW_CR_QTY === undefined || !Username || !BranchCode) {
         // console.error("ค่าที่รับมาไม่ครบ:", req.body);
         return res.status(400).json({ success: false, message: "Missing required fields!" });
     }
@@ -814,11 +798,13 @@ app.post("/api/update-stock-transaction", async (req, res) => {
                 ISNULL(TOTAL_CR_QTY, 0) AS TOTAL_CR_QTY,  
                 ISNULL(REMAINING_QTY, 0) AS REMAINING_QTY
             FROM stock_summary 
-            WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+            WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @Branch_Code
         `;
         const summaryRequest = new sql.Request(transaction);
         summaryRequest.input("DI_REF", sql.NVarChar, DI_REF);
         summaryRequest.input("SKU_CODE", sql.NVarChar, SKU_CODE);
+        summaryRequest.input("SKU_CODE", sql.NVarChar, SKU_CODE);
+        summaryRequest.input("Branch_Code", sql.VarChar, BranchCode);
         const summaryResult = await summaryRequest.query(summaryQuery);
 
         if (summaryResult.recordset.length === 0) {
@@ -844,6 +830,7 @@ app.post("/api/update-stock-transaction", async (req, res) => {
         updateStockRequest.input("NEWCRQTY", sql.Int, NEW_CR_QTY);
         updateStockRequest.input("UPDATEBY", sql.VarChar, Username);
         updateStockRequest.input("ID", sql.Int, ID);
+       
         await updateStockRequest.query(updateStockQuery);
 
         const updateSummaryQuery = `
@@ -853,7 +840,7 @@ app.post("/api/update-stock-transaction", async (req, res) => {
             REMAINING_QTY = @UPDATEDREMAININGQTY,
             UPDATE_BY = @UPDATEBY,
             UPDATE_DATE = GETDATE()
-        WHERE DI_REF = @DIREF AND SKU_CODE = @SKUCODE
+        WHERE DI_REF = @DIREF AND SKU_CODE = @SKUCODE AND BRANCH_CODE = @BranchCode
         `;
         const updateSummaryRequest = new sql.Request(transaction);
         updateSummaryRequest.input("TOTALCRQTY", sql.Int, NEW_TOTAL_CR_QTY);
@@ -861,6 +848,7 @@ app.post("/api/update-stock-transaction", async (req, res) => {
         updateSummaryRequest.input("UPDATEBY", sql.VarChar, Username);
         updateSummaryRequest.input("DIREF", sql.VarChar, DI_REF);
         updateSummaryRequest.input("SKUCODE", sql.VarChar, SKU_CODE);
+        updateSummaryRequest.input("BranchCode", sql.VarChar, BranchCode);
         await updateSummaryRequest.query(updateSummaryQuery);
 
         await transaction.commit();
