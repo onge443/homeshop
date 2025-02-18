@@ -48,9 +48,13 @@ async function searchPreparation() {
             { "data": "ReceivedQty" },
             { "data": "PendingQty" },
             { 
-                "data": "LATEST_PREPARE_QTY",
+            "data": "LATEST_PREPARE_QTY",
                 "render": function (data, type, row) {
-                    return `<input type='number' class='form-control prepare-input' value='${data || ''}' data-doc='${row.DocumentID}' data-prod='${row.SKU_CODE}' max ='${row.PendingQty}' min='0' >`;
+                        return `<input type='number' class='form-control prepare-input' value='${data || 0}' 
+                            data-doc='${row.DocumentID}' 
+                            data-prod='${row.SKU_CODE}' 
+                            max ='${row.PendingQty}' 
+                            min='0' >`;
                 }
             },
             { "data": "STATUS" },
@@ -126,7 +130,7 @@ document.addEventListener("click", async (event) => {
         const SKUCode = button.getAttribute("data-prod");
         const qtyInput = row.querySelector(".prepare-input").value.trim();
         const username = localStorage.getItem("username") || "ระบบ";
-        const branch = localStorage.getItem("branch");
+        const branch = localStorage.getItem("branch_code");
 
         if (!docID || !SKUCode) {
             alert("ไม่พบข้อมูลเอกสารหรือรหัสสินค้า");
@@ -158,6 +162,9 @@ document.addEventListener("click", async (event) => {
                 alert("บันทึกข้อมูลสำเร็จ!");
                 row.querySelector("td:nth-last-child(2)").textContent = "จัดเตรียมสำเร็จ";
                 button.style.display = "none"; // ✅ ซ่อนปุ่ม "บันทึก"
+                
+                // ✅ รีโหลดตารางใหม่โดยไม่ต้องโหลดหน้าเว็บ
+                $('#resultstock').DataTable().ajax.reload();
             } else {
                 alert("เกิดข้อผิดพลาดในการบันทึก");
             }
@@ -167,7 +174,6 @@ document.addEventListener("click", async (event) => {
         }
     }
 });
-
 // ✅ โหลดข้อมูลเมื่อเปิดหน้าเว็บ
 loadStatusList();
 loadProductCategories();

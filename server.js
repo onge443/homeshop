@@ -179,12 +179,22 @@ app.get('/api/get-stock-status2', async (req, res) => {
         // ✅ ดึงเฉพาะข้อมูลที่ `DI_DATE` เท่ากับวันที่ล่าสุด
         const result = await pool.request()
             .input("LatestDate", sql.Date, latestDate)
-            .query(`
-                SELECT TOP 50 DI_REF, SKU_NAME, LATEST_PREPARE_QTY, STATUS
-                FROM Stock_Summary
-                WHERE DI_DATE = @LatestDate
-                ORDER BY DI_REF DESC, SKU_NAME ASC
+            .query(`SELECT TOP 50
+                DI_REF, 
+                SKU_NAME, 
+                LATEST_PREPARE_QTY, 
+                (CASE 
+                    WHEN STATUS = 1 THEN 'รอการจัดเตรียม'
+                    WHEN STATUS = 3 THEN 'จัดเตรียมเรียบร้อย'
+                    ELSE NULL
+                END) AS STATUS_NAME
+            FROM Stock_Summary
+            WHERE DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary)
+            AND STATUS IN (1, 3)
+            ORDER BY UPDATE_DATE DESC;
             `);
+
+            console.log("✅ ข้อมูลจาก Stock_Summary:", result.recordset);  // ตรวจสอบข้อมูลที่ดึงมา
 
         res.json({ success: true, data: result.recordset });
     } catch (error) {
@@ -211,22 +221,22 @@ app.get('/api/branches', async (req, res) => {
     }
 });
 
-app.get('/api/get-stock-status', async (req, res) => {
-    try {
-        const pool = await getPool("TestOng");
-        const result = await pool.request().query(`
-            SELECT DI_REF, SKU_NAME, LATEST_PREPARE_QTY, STATUS
-            FROM stock_summary
-            WHERE STATUS != 'ตรวจจ่ายเรียบร้อย'  -- ✅ กรองที่ SQL
-            ORDER BY UPDATE_DATE DESC
-        `);
+// app.get('/api/get-stock-status', async (req, res) => {
+//     try {
+//         const pool = await getPool("TestOng");
+//         const result = await pool.request().query(`
+//             SELECT DI_REF, SKU_NAME, LATEST_PREPARE_QTY, STATUS
+//             FROM stock_summary
+//             WHERE STATUS != 'ตรวจจ่ายเรียบร้อย'  -- ✅ กรองที่ SQL
+//             ORDER BY UPDATE_DATE DESC
+//         `);
 
-        res.json({ success: true, data: result.recordset });
-    } catch (error) {
-        console.error("Error fetching stock status:", error);
-        res.status(500).json({ success: false, message: "Database error" });
-    }
-});
+//         res.json({ success: true, data: result.recordset });
+//     } catch (error) {
+//         console.error("Error fetching stock status:", error);
+//         res.status(500).json({ success: false, message: "Database error" });
+//     }
+// });
 
 app.get('/api/product-categories', async (req, res) => {
     try {
@@ -258,24 +268,71 @@ app.get('/api/product-categories', async (req, res) => {
 app.post('/api/search-preparation', async (req, res) => {
     try {
         const { category, status, documentID, branch, start, length } = req.body;
+        console.log("✅ ค่าที่ได้รับจาก Frontend:", { category, status, documentID, branch, start, length });
+
         const pool = await getPool('TestOng');
         const request = pool.request();
-
         request.input('Branch', sql.VarChar, branch);
-        if (category && category !== "all") {
-            request.input('Category', sql.NVarChar, category);
-        }
-        
-        if (documentID){ 
-            request.input('documentID', sql.VarChar, documentID);
-        }
-        request.input('start', sql.Int, start);
+        request.input('start', sql.Int, start);  
         request.input('length', sql.Int, length);
 
-        // ✅ ใส่ `;` เพื่อป้องกัน Syntax Error
+        // ✅ ดึง MAX(DI_DATE) แยกออกมาก่อน
+        const latestDateQuery = await pool.request()
+            .input('Branch', sql.VarChar, branch)
+            .query(`SELECT MAX(DI_DATE) AS LatestDate FROM Stock_Summary WHERE BRANCH_CODE = @Branch`);
+
+        const latestDate = latestDateQuery.recordset[0]?.LatestDate;
+        console.log("✅ วันที่ล่าสุดที่ดึงมา:", latestDate);
+
+        if (!latestDate) {
+            return res.json({ success: false, message: "❌ ไม่พบข้อมูลวันที่ล่าสุด" });
+        }
+
+        request.input('LatestDate', sql.DateTime, latestDate);
+
+        // ✅ แปลงค่า `status` เป็นตัวเลขก่อนส่งเข้า SQL
+        const statusMapping = {
+            "รอการจัดเตรียม": 1,
+            "รอการตรวจจ่าย": 2,
+            "จัดเตรียมเรียบร้อย": 3,
+            "ตรวจจ่ายเรียบร้อย": 4,
+            "รอสโตร์ตรวจจ่าย": 5
+        };
+        let statusValue = statusMapping[status] || null;
+
+        if (statusValue !== null) {
+            request.input('Status', sql.Int, statusValue);
+            console.log("✅ ค่าของ @Status ที่ใช้ใน SQL:", statusValue);
+        }
+
+        // ✅ นับจำนวน Record ทั้งหมดก่อนแบ่งหน้า
+        let countQuery = `
+            SELECT COUNT(*) AS totalRecords
+            FROM Stock_Summary SS WITH (NOLOCK)
+            WHERE SS.BRANCH_CODE = @Branch 
+            AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง')  
+            AND SS.DI_DATE = @LatestDate
+        `;
+
+        if (category && category !== "all") {
+            request.input('Category', sql.NVarChar, category);
+            countQuery += ` AND SS.ICCAT_NAME = @Category`;
+        }
+        if (documentID) { 
+            request.input('documentID', sql.VarChar, documentID);
+            countQuery += ` AND SS.DI_REF = @documentID`;
+        }
+        if (statusValue !== null) {
+            countQuery += ` AND SS.STATUS = @Status`;
+        }
+
+        const totalRecordsResult = await request.query(countQuery);
+        const totalRecords = totalRecordsResult.recordset[0].totalRecords;
+        console.log("✅ จำนวนข้อมูลทั้งหมด:", totalRecords);
+
+        // ✅ ใช้ ROW_NUMBER() และแบ่งหน้า (รองรับ SQL Server 2008)
         let baseQuery = `
-            SELECT TOP (@length) *
-            FROM (
+            SELECT * FROM (
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY SS.DI_DATE DESC, SS.DI_REF) AS RowNum,
                     SS.DI_REF AS DocumentID, 
@@ -293,51 +350,41 @@ app.post('/api/search-preparation', async (req, res) => {
                 LEFT JOIN stock_status SST WITH (NOLOCK) 
                     ON SS.STATUS = SST.ID
                 WHERE SS.BRANCH_CODE = @Branch 
-                AND SS.SKU_WL IN ('คลังสินค้า','สโตร์/คลัง')
-                AND SS.DI_DATE = (
-                    SELECT MAX(DI_DATE) 
-                    FROM Stock_Summary WITH (NOLOCK) 
-                    WHERE BRANCH_CODE = @Branch
-                )
-            ) AS StockData
-            WHERE RowNum > @start
+                AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง')  
+                AND SS.DI_DATE = @LatestDate
         `;
 
-        // ✅ ถ้าผู้ใช้เลือก `status` ให้เพิ่มเงื่อนไข `AND`
-        if (status && status !== "all") {
-            request.input('Status', sql.NVarChar, status);
-            baseQuery += ` AND STATUS = @Status`;
+        if (category && category !== "all") {
+            baseQuery += ` AND SS.ICCAT_NAME = @Category`;
+        }
+        if (documentID) { 
+            baseQuery += ` AND SS.DI_REF = @documentID`;
+        }
+        if (statusValue !== null) {
+            baseQuery += ` AND SS.STATUS = @Status`;
         }
 
-        // ✅ ต้องแน่ใจว่า `ORDER BY` อยู่ที่ท้ายสุดเสมอ
-        baseQuery += ` ORDER BY RowNum;`;
+        baseQuery += `) AS FilteredData
+            WHERE RowNum BETWEEN @start + 1 AND @start + @length
+            ORDER BY RowNum;
+        `;
 
-                const totalRecordsQuery = `
-                    SELECT COUNT(*) AS total 
-                    FROM Stock_Summary WITH (NOLOCK)
-                    WHERE BRANCH_CODE = @Branch 
-                    AND DI_DATE = (
-                        SELECT MAX(DI_DATE) 
-                        FROM Stock_Summary WITH (NOLOCK) 
-                        WHERE BRANCH_CODE = @Branch
-                    )
-                `;
-        const totalRecords = (await request.query(totalRecordsQuery)).recordset[0].total;
-
+        console.log("✅ SQL Query ที่ใช้:", baseQuery);
         const result = await request.query(baseQuery);
+        console.log("✅ จำนวนข้อมูลที่ SQL ส่งมา:", result.recordset.length);
+
         res.json({
             draw: req.body.draw,
             recordsTotal: totalRecords,
             recordsFiltered: totalRecords,
             data: result.recordset
         });
+
     } catch (error) {
-        console.error("Database Error:", error);
+        console.error("❌ Database Error:", error);
         res.status(500).json({ success: false, message: "Database error", error: error.message });
     }
 });
-
-
 
 
 
@@ -370,8 +417,11 @@ app.post('/api/save-preparation', async (req, res) => {
         await transaction.begin();
         const request = new sql.Request(transaction);
 
-        // ✅ อัปเดต `stock_summary`
-        await request
+        // ✅ อัปเดต stock_summary (ใช้ request ใหม่)
+        console.log("🔄 Updating stock_summary with", { DI_REF, ProductCode, PreparedQty, branch });
+        
+        const requestUpdate = new sql.Request(transaction);
+        const resultUpdate = await requestUpdate
             .input('DI_REF', sql.NVarChar, DI_REF)
             .input('SKU_CODE', sql.NVarChar, ProductCode)
             .input('LATEST_PREPARE_QTY', sql.Int, PreparedQty)
@@ -381,31 +431,95 @@ app.post('/api/save-preparation', async (req, res) => {
             .input('BRANCH_CODE', sql.VarChar, branch)
             .query(`
                 UPDATE stock_summary
-                SET 
-                    LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY, 
-                    STATUS = @STATUS, 
-                    UPDATE_DATE = @UPDATE_DATE, 
-                    UPDATE_BY = @UPDATE_BY
-                WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
-                AND BRANCH_CODE = @BRANCH_CODE
-            `);
+                    SET 
+                        LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY, 
+                        STATUS = @STATUS, 
+                        UPDATE_DATE = @UPDATE_DATE, 
+                        UPDATE_BY = @UPDATE_BY
+                    WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+                    AND BRANCH_CODE = @BRANCH_CODE;
 
-        // ✅ ดึงค่า ICCAT_CODE และ ICCAT_NAME จาก stock_summary
-        const iccatQuery = await request
+                    SELECT @@ROWCOUNT AS affectedRows;
+            `);
+            // ✅ ตรวจสอบว่ามีแถวถูกอัปเดตหรือไม่
+            if (!resultUpdate.recordset || resultUpdate.recordset.length === 0 || resultUpdate.recordset[0].affectedRows === 0) {
+                throw new Error("❌ No rows updated in stock_summary. Check DI_REF, SKU_CODE, and BRANCH_CODE.");
+            }
+
+            console.log("✅ Stock summary updated successfully!");
+            
+            // ✅ ดึงค่า LATEST_PREPARE_QTY และ TOTAL_SKU_QTY จาก stock_summary
+            const requestStockSummary = new sql.Request(transaction);
+            const stockQuery = await requestStockSummary
+                .input('DI_REF', sql.NVarChar, DI_REF)
+                .input('SKU_CODE', sql.NVarChar, ProductCode)
+                .input('BRANCH_CODE', sql.VarChar, branch)
+                .query(`
+                    SELECT LATEST_PREPARE_QTY, TOTAL_SKU_QTY 
+                    FROM stock_summary 
+                    WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE 
+                    AND BRANCH_CODE = @BRANCH_CODE
+                `);
+
+            if (stockQuery.recordset.length === 0) {
+                throw new Error("❌ ไม่พบข้อมูลใน stock_summary");
+            }
+
+            const LATEST_PREPARE_QTY = stockQuery.recordset[0].LATEST_PREPARE_QTY || 0;
+            const TOTAL_SKU_QTY = stockQuery.recordset[0].TOTAL_SKU_QTY || 0;
+
+            console.log("✅ ข้อมูลปัจจุบันของ stock_summary:", { LATEST_PREPARE_QTY, TOTAL_SKU_QTY });
+
+            // ✅ เช็คว่าจัดเตรียมครบหรือยัง
+            if (LATEST_PREPARE_QTY >= TOTAL_SKU_QTY) {
+                console.log("✅ ของเตรียมครบแล้ว อัปเดต STATUS เป็น 3 (จัดเตรียมเรียบร้อย)");
+                // 🛠️ ใช้ requestUpdate2 เพื่อหลีกเลี่ยงปัญหาพารามิเตอร์ซ้ำ
+                const requestUpdate2 = new sql.Request(transaction);
+                await requestUpdate2
+                    .input('DI_REF', sql.NVarChar, DI_REF)
+                    .input('SKU_CODE', sql.NVarChar, ProductCode)
+                    .input('BRANCH_CODE', sql.VarChar, branch)
+                    .input('STATUS_COMPLETE', sql.NVarChar, "3") // เปลี่ยนชื่อพารามิเตอร์เป็น STATUS_NEW
+                    .query(`
+                        UPDATE stock_summary
+                        SET STATUS = @STATUS_COMPLETE
+                        WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+                        AND BRANCH_CODE = @BRANCH_CODE
+                    `);
+            } else {
+                console.log("🔄 ยังเตรียมของไม่ครบ อัปเดต STATUS เป็น 1 เพื่อให้แสดงใน tables2 อีกครั้ง");
+
+                const requestUpdateStatus = new sql.Request(transaction);
+                await requestUpdateStatus
+                .input('DI_REF', sql.NVarChar, DI_REF)
+                .input('SKU_CODE', sql.NVarChar, ProductCode)
+                .input('BRANCH_CODE', sql.VarChar, branch)
+                .input('STATUS_PENDING', sql.NVarChar, "1") // เปลี่ยนเป็น 1 (รอการจัดเตรียม)
+                .query(`
+                    UPDATE stock_summary
+                    SET STATUS = @STATUS_PENDING
+                    WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
+                    AND BRANCH_CODE = @BRANCH_CODE
+                `);
+            }
+        // ✅ ดึงค่า ICCAT_CODE และ ICCAT_NAME (ใช้ request ใหม่)
+        const requestICCAT = new sql.Request(transaction);
+        const iccatQuery = await requestICCAT
             .input('DI_REF', sql.NVarChar, DI_REF)
             .input('SKU_CODE', sql.NVarChar, ProductCode)
             .query(`
                 SELECT ICCAT_CODE, ICCAT_NAME 
                 FROM stock_summary 
                 WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE
-            `);
+                `);
 
-        if (iccatQuery.recordset.length === 0) {
-            throw new Error("❌ ICCAT_CODE หรือ ICCAT_NAME ไม่พบใน stock_summary");
-        }
+            if (iccatQuery.recordset.length === 0) {
+                throw new Error("❌ ICCAT_CODE หรือ ICCAT_NAME ไม่พบใน stock_summary");
+            }
 
-        // ✅ บันทึกข้อมูลลง preparationRecords
-        await request
+        // ✅ บันทึกข้อมูลลง preparationRecords (ใช้ request ใหม่)
+        const requestInsert = new sql.Request(transaction);
+        await requestInsert
             .input('DI_REF', sql.NVarChar, DI_REF)
             .input('SKU_CODE', sql.NVarChar, ProductCode)
             .input('ICCAT_CODE', sql.NVarChar, iccatQuery.recordset[0].ICCAT_CODE)
