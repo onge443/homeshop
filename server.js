@@ -182,14 +182,15 @@ app.get('/api/get-stock-status2', async (req, res) => {
             .query(`SELECT TOP 50
                 DI_REF, 
                 SKU_NAME, 
-                LATEST_PREPARE_QTY, 
+                LATEST_PREPARE_QTY,
+                UPDATE_DATE, 
                 (CASE 
                     WHEN STATUS = 1 THEN 'รอการจัดเตรียม'
                     WHEN STATUS = 3 THEN 'จัดเตรียมเรียบร้อย'
                     ELSE NULL
                 END) AS STATUS_NAME
             FROM Stock_Summary
-            WHERE DI_DATE = (SELECT MAX(DI_DATE) FROM Stock_Summary)
+            WHERE DI_DATE = @LatestDate
             AND STATUS IN (1, 3)
             ORDER BY UPDATE_DATE DESC;
             `);
