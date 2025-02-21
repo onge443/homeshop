@@ -261,21 +261,8 @@ app.post('/api/search-preparation', async (req, res) => {
         request.input('start', sql.Int, start);  
         request.input('length', sql.Int, length);
 
-        // ✅ ดึง MAX(DI_DATE) แยกออกมาก่อน
-        const latestDateQuery = await pool.request()
-            .input('Branch', sql.VarChar, branch)
-            .query(`SELECT MAX(DI_DATE) AS LatestDate FROM Stock_Summary WHERE BRANCH_CODE = @Branch`);
-
-        const latestDate = latestDateQuery.recordset[0]?.LatestDate;
-        console.log("✅ วันที่ล่าสุดที่ดึงมา:", latestDate);
-
-        if (!latestDate) {
-            return res.json({ success: false, message: "❌ ไม่พบข้อมูลวันที่ล่าสุด" });
-        }
-
-        request.input('LatestDate', sql.DateTime, latestDate);
-
         // ✅ แปลงค่า `status` เป็นตัวเลขก่อนส่งเข้า SQL
+        let statusValue = null;
         const statusMapping = {
             "รอการจัดเตรียม": 1,
             "รอการตรวจจ่าย": 2,
@@ -283,25 +270,38 @@ app.post('/api/search-preparation', async (req, res) => {
             "ตรวจจ่ายเรียบร้อย": 4,
             "รอสโตร์ตรวจจ่าย": 5
         };
-        let statusValue = statusMapping[status] || null;
+        if(status != 'all'){
+            statusValue = statusMapping[status];
+        }
+        
+        
 
         if (statusValue !== null) {
+
             request.input('Status', sql.Int, statusValue);
             console.log("✅ ค่าของ @Status ที่ใช้ใน SQL:", statusValue);
         }
 
         // ✅ นับจำนวน Record ทั้งหมดก่อนแบ่งหน้า
+
         let countQuery = `
             SELECT COUNT(*) AS totalRecords
-            FROM Stock_Summary SS WITH (NOLOCK)
+                FROM Stock_Summary SS WITH (NOLOCK)
+			RIGHT JOIN (Select ID
+						FROM Stock_Summary 
+						WHERE BRANCH_CODE = @Branch 
+						AND DATEPART(YEAR, DI_DATE) = 2024 
+						AND DATEPART(MONTH, DI_DATE) = 10
+					) as CHECKLATESTMONTH
+					on CHECKLATESTMONTH.ID =SS.ID
             WHERE SS.BRANCH_CODE = @Branch 
             AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง')  
-            AND SS.DI_DATE = @LatestDate
         `;
+        
 
         if (category && category !== "all") {
             request.input('Category', sql.NVarChar, category);
-            countQuery += ` AND SS.ICCAT_NAME = @Category`;
+            countQuery += ` AND SS.ICCAT_CODE = @Category`;
         }
         if (documentID) { 
             request.input('documentID', sql.VarChar, documentID);
@@ -314,7 +314,7 @@ app.post('/api/search-preparation', async (req, res) => {
         const totalRecordsResult = await request.query(countQuery);
         const totalRecords = totalRecordsResult.recordset[0].totalRecords;
         console.log("✅ จำนวนข้อมูลทั้งหมด:", totalRecords);
-
+        // const request2 = pool.request();
         // ✅ ใช้ ROW_NUMBER() และแบ่งหน้า (รองรับ SQL Server 2008)
         let baseQuery = `
             SELECT * FROM (
@@ -334,13 +334,19 @@ app.post('/api/search-preparation', async (req, res) => {
                 FROM Stock_Summary SS WITH (NOLOCK)
                 LEFT JOIN stock_status SST WITH (NOLOCK) 
                     ON SS.STATUS = SST.ID
-                WHERE SS.BRANCH_CODE = @Branch 
-                AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง')  
-                AND SS.DI_DATE = @LatestDate
+				RIGHT JOIN (Select ID
+						FROM Stock_Summary 
+						WHERE BRANCH_CODE = @Branch
+						AND DATEPART(YEAR, DI_DATE) = 2024 
+						AND DATEPART(MONTH, DI_DATE) = 10
+                ) as CHECKLATESTMONTH
+					on CHECKLATESTMONTH.ID =SS.ID
+                WHERE SS.BRANCH_CODE = @Branch
+                AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง') 
         `;
 
         if (category && category !== "all") {
-            baseQuery += ` AND SS.ICCAT_NAME = @Category`;
+            baseQuery += ` AND SS.ICCAT_CODE = @Category`;
         }
         if (documentID) { 
             baseQuery += ` AND SS.DI_REF = @documentID`;
@@ -353,7 +359,8 @@ app.post('/api/search-preparation', async (req, res) => {
             WHERE RowNum BETWEEN @start + 1 AND @start + @length
             ORDER BY RowNum;
         `;
-
+       
+        // request2.input('BranchCode', sql.VarChar, branch);
         console.log("✅ SQL Query ที่ใช้:", baseQuery);
         const result = await request.query(baseQuery);
         console.log("✅ จำนวนข้อมูลที่ SQL ส่งมา:", result.recordset.length);
@@ -602,9 +609,9 @@ app.post('/searchCheckQTY', async (req, res) => {
                             ELSE 'Unknown'
                         END AS SKU_WL, 
                         CASE 
-                            WHEN SKU_WL = 'คลังสินค้า' THEN 'รอการจัดเตรียม'     
-                            WHEN SKU_WL = 'สโตร์/คลัง' THEN 'รอสโตร์ตรวจจ่าย'    
-                            WHEN SKU_WL = 'สโตร์' THEN 'รอการตรวจจ่าย'      
+                            WHEN LEFT(ICCAT_CODE, 1) IN ('A', 'B', 'K') THEN 'รอการจัดเตรียม'     
+                            WHEN LEFT(ICCAT_CODE, 1) = 'R' THEN 'รอสโตร์ตรวจจ่าย'    
+                            WHEN LEFT(ICCAT_CODE, 1) IN ('M', 'O', 'P', 'S', 'T', 'V', 'W') THEN 'รอการตรวจจ่าย'      
                             ELSE 'Unknown'
                         END AS STATUS
                     FROM DOCINFO
@@ -613,7 +620,7 @@ app.post('/searchCheckQTY', async (req, res) => {
                     INNER JOIN SKUMASTER ON SKUMOVE.SKM_SKU = SKUMASTER.SKU_KEY
                     INNER JOIN ICCAT ON SKUMASTER.SKU_ICCAT = ICCAT.ICCAT_KEY
                     WHERE 
-                        (DOCTYPE.DT_PROPERTIES=302 OR
+                        ((DOCTYPE.DT_PROPERTIES=302 AND DOCTYPE.DT_KEY != 1471) OR
                         DOCTYPE.DT_PROPERTIES=307 OR
                         DOCTYPE.DT_PROPERTIES=308 OR
                         DOCTYPE.DT_PROPERTIES=337) AND

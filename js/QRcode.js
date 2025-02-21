@@ -174,7 +174,7 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
                 }else if(location == "คลังสินค้า"){
                     if((parseInt(prepareQTY,10) != 0 && !isNaN(prepareQTY)) && (parseInt(checkQTYInput.value, 10) < parseInt(prepareQTY,10))) {
                         status = "รอการจัดเตรียม";
-                        c
+                        
                     }else if ((parseInt(prepareQTY,10) != 0 && !isNaN(prepareQTY)) && parseInt(checkQTYInput.value, 10) == parseInt(prepareQTY,10) && parseInt(subtotalInput.value, 10) > 0){
                         status = "รอการจัดเตรียม";
                        
@@ -256,7 +256,7 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
                 document.getElementById("printButton").disabled = false;
                 document.getElementById("printButton").hidden = false;
                 tabledisable();
-                alert("✅ Data inserted successfully!");
+                showAlert("บันทึกรายการเรียบร้อย!");
             } else {
                 alert(`⚠️ Some batches failed: ${failedBatches.length} batches`);
             }
@@ -293,11 +293,23 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
         });
     }
 
-    function showAlert(text) {
+    async function showAlert(text) {
         // สร้าง div สำหรับ Alert
         const alertDiv = document.createElement('div');
         alertDiv.classList.add('alert', 'alert-success', 'd-flex', 'align-items-center');
         alertDiv.setAttribute('role', 'alert');
+        // กำหนดสไตล์ให้แสดงที่ด้านบนสุด
+        alertDiv.style.position = "fixed";
+        alertDiv.style.top = "10PX"; // เว้นจากขอบบนเล็กน้อย
+        alertDiv.style.left = "50%";
+        alertDiv.style.width = "40%";
+        alertDiv.style.minWidth = "300px";
+        alertDiv.style.textAlign = "center";
+        alertDiv.style.transform = "translateX(-50%)"; // จัดให้อยู่ตรงกลาง
+        alertDiv.style.zIndex = "9999"; // ให้ Alert อยู่ด้านบนสุด
+        alertDiv.style.padding = "15px";
+        alertDiv.style.fontSize = "16px";
+        alertDiv.style.boxShadow = "0px 4px 10px rgba(0, 0, 0, 0.1)";
 
         // สร้าง svg ไอคอน
         const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -517,7 +529,7 @@ function updateTable(result) {
             let maxCheckQTY = 0; // กำหนดค่าเริ่มต้น
             if (round <= 1 ) {
                 maxCheckQTY = (QuantitySold && !isNaN(QuantitySold)) ? QuantitySold : 0; // ตรวจสอบ QuantitySold ว่ามีค่าหรือไม่
-                if(location == "Warehouse" && !isNaN(QuantitySold) )
+                if(location == "คลังสินค้า" && !isNaN(QuantitySold) )
                 {
                     if(parseInt(LatestPPQTY,10)==0 || isNaN(LatestPPQTY)){
                         maxCheckQTY = (RemainQTY && !isNaN(RemainQTY)) ? RemainQTY : 0;
@@ -534,7 +546,7 @@ function updateTable(result) {
                 else { // QuantitySold =5 and remain = 0
                     maxCheckQTY = (QuantitySold && !isNaN(QuantitySold)) ? QuantitySold : 0; // ตรวจสอบ QuantitySold ว่ามีค่าหรือไม่
                 }
-                if(location == "Warehouse" && !isNaN(QuantitySold) )
+                if(location == "คลังสินค้า" && !isNaN(QuantitySold) )
                 {
                     if(parseInt(LatestPPQTY,10)==0 || isNaN(LatestPPQTY)){
                         maxCheckQTY = (RemainQTY && !isNaN(RemainQTY)) ? RemainQTY : 0;
@@ -574,13 +586,13 @@ function updateTable(result) {
                 inputCheckQTY.value = event.target.value;
 
                 // ตรวจสอบว่า check qty ต้องไม่เกิน quantitySold และไม่ต่ำกว่า 0
-                const value = parseInt(inputCheckQTY.value, 10);
+                const values = parseInt(inputCheckQTY.value, 10);
                 // ถ้าค่าต่ำกว่าขีดจำกัด min
-                if (value < 0) {
+                if (values < 0) {
                     inputCheckQTY.value = 0;
                 }
                 // ถ้าค่ามากกว่าขีดจำกัด max
-                else if (value > maxCheckQTY) {
+                else if (values > maxCheckQTY) {
                     inputCheckQTY.value = maxCheckQTY;
                 }
                  // อัปเดต model เมื่อ input เปลี่ยนแปลง
@@ -596,10 +608,11 @@ function updateTable(result) {
                 //เปิดปุ่มรับทั้งหมดกรณีที่ ค่า subtotal ไม่เท่ากับ 0
                 let inputcheck = event.target.id;
                 let i = inputcheck.replace("CheckQTY","");
-                if(inputSubTotal != 0 && document.getElementById("ReceiveAll"+i).hidden === true){
+                if(inputSubTotal.value != 0){
                     document.getElementById("ReceiveAll"+i).hidden = false;
-
+                    
                 }else{
+                    
                     document.getElementById("ReceiveAll"+i).hidden = true;
                 }
                 // console.log('Updated จำนวนตรวจจ่าย:', inputCheckQTY.value);
@@ -614,6 +627,7 @@ function updateTable(result) {
             button.textContent = 'รับทั้งหมด';
             button.setAttribute('class', 'btn btn-primary');
             button.setAttribute('id', 'ReceiveAll'+(index + 1));
+            
             
             // Stock ID 
             const tdID = tr.insertCell();
@@ -658,23 +672,26 @@ function updateTable(result) {
                 if(document.getElementById("insertStockButton").hidden === true){
                     document.getElementById("insertStockButton").hidden = false;
                 }
-                // ซ่อนปุ่มปัจจุบันที่ถูกคลิก
+                // // ซ่อนปุ่มปัจจุบันที่ถูกคลิก
                 const clickedButton = document.getElementById(event.target.id);
                 if (clickedButton) {
                     clickedButton.hidden = true;  // ใช้ style.display แทน hidden
-                }
+                }                
             });
 
             tdAction.appendChild(button);
             if(RemainQTY==0){
-                document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
+                // document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
                 document.getElementById("CheckQTY"+(index + 1)).disabled = true;
-            }else if (location == "Warehouse" && (LatestPPQTY == 0 || isNaN(LatestPPQTY)) && RemainQTY!=0){
-                document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
+            }else if (location == "คลังสินค้า" && (LatestPPQTY == 0 || isNaN(LatestPPQTY)) && RemainQTY!=0){
+                // document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
                 document.getElementById("CheckQTY"+(index + 1)).disabled = true;
-            }else if ( location == "Store/Warehouse" && status == "รอการจัดเตรียม" && LatestPPQTY == 0){
-                document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
+            }else if ( location == "สโตร์/คลังสินค้า" && status == "รอการจัดเตรียม" && LatestPPQTY == 0){
+                // document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
                 document.getElementById("CheckQTY"+(index + 1)).disabled = true;
+            }
+            if(document.getElementById("CheckQTY"+(index + 1)).disabled == true){
+                document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
             }
             
             
@@ -683,6 +700,8 @@ function updateTable(result) {
             
         });
         messageDiv.innerHTML = ''; // ถ้าไม่มีข้อผิดพลาด
+                
+        
     } else {
         messageDiv.innerHTML = `<p>${result.message}</p>`;
     }

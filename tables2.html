@@ -329,72 +329,72 @@
 
 
 <script>
-let table; // ✅ เก็บ instance ของ DataTables
+// let table; // ✅ เก็บ instance ของ DataTables
 
-function loadPreparationTable() {
-    // console.log("🔎 กำลังค้นหาข้อมูล...");
+// function loadPreparationTable() {
+//     // console.log("🔎 กำลังค้นหาข้อมูล...");
 
-    if ($.fn.DataTable.isDataTable("#resultstock")) {
-        // console.log("🔄 DataTable มีอยู่แล้ว กำลังลบและโหลดใหม่...");
-        $('#resultstock').DataTable().destroy();
-        $('#resultstock tbody').empty();
-    } else {
-        console.log("🆕 สร้าง DataTable ใหม่...");
-    }
+//     if ($.fn.DataTable.isDataTable("#resultstock")) {
+//         // console.log("🔄 DataTable มีอยู่แล้ว กำลังลบและโหลดใหม่...");
+//         $('#resultstock').DataTable().destroy();
+//         $('#resultstock tbody').empty();
+//     } else {
+//         console.log("🆕 สร้าง DataTable ใหม่...");
+//     }
 
-    const category = document.getElementById("filterCategory").value;
-    const status = document.getElementById("filterStatus").value;
-    const documentID = document.getElementById("filterDocument").value;
-    const branch = localStorage.getItem("branch_code");
+//     const category = document.getElementById("filterCategory").value;
+//     const status = document.getElementById("filterStatus").value;
+//     const documentID = document.getElementById("filterDocument").value;
+//     const branch = localStorage.getItem("branch_code");
 
-    $('#resultstock').DataTable({
-        "processing": true,
-        "serverSide": true,
-        "destroy": true, 
-        "ajax": {
-            "url": "/api/search-preparation",
-            "type": "POST",
-            "contentType": "application/json",
-            "data": function(d) {
-                return JSON.stringify({
-                    category: category,
-                    status: status,
-                    documentID: documentID,
-                    branch: branch,
-                    start: d.start,
-                    length: d.length
-                });
-            }
-        },
-        "pageLength": 10,
-        "ordering": false,
-        "columns": [
-            { "data": null, "render": function(data, type, row, meta) { return meta.row + 1; }},
-            { "data": "DocumentID" },
-            { "data": "SKU_WL" },
-            { "data": "ProductCategoryName" },
-            { "data": "SKU_CODE" },
-            { "data": "SKU_NAME" },
-            { "data": "SoldQty" },
-            { "data": "ReceivedQty" },
-            { "data": "PendingQty" },
-            { "data": "LATEST_PREPARE_QTY" },
-            { "data": "STATUS" },
-            { "data": null, "render": function() {
-                return '<button class="btn btn-success save-btn">บันทึก</button>';
-            }}
-        ]
-    });
+//     $('#resultstock').DataTable({
+//         "processing": true,
+//         "serverSide": true,
+//         "destroy": true, 
+//         "ajax": {
+//             "url": "/api/search-preparation",
+//             "type": "POST",
+//             "contentType": "application/json",
+//             "data": function(d) {
+//                 return JSON.stringify({
+//                     category: category,
+//                     status: status,
+//                     documentID: documentID,
+//                     branch: branch,
+//                     start: d.start,
+//                     length: d.length
+//                 });
+//             }
+//         },
+//         "pageLength": 10,
+//         "ordering": false,
+//         "columns": [
+//             { "data": null, "render": function(data, type, row, meta) { return meta.row + 1; }},
+//             { "data": "DocumentID" },
+//             { "data": "SKU_WL" },
+//             { "data": "ProductCategoryName" },
+//             { "data": "SKU_CODE" },
+//             { "data": "SKU_NAME" },
+//             { "data": "SoldQty" },
+//             { "data": "ReceivedQty" },
+//             { "data": "PendingQty" },
+//             { "data": "LATEST_PREPARE_QTY" },
+//             { "data": "STATUS" },
+//             { "data": null, "render": function() {
+//                 return '<button class="btn btn-success save-btn">บันทึก</button>';
+//             }}
+//         ]
+//     });
 
-    $('#resultstock').show(); // ✅ แสดงตารางหลังจากโหลดข้อมูล
-}
+//     $('#resultstock').show(); // ✅ แสดงตารางหลังจากโหลดข้อมูล
+// }
 
 
-// ✅ ปุ่มค้นหา
-$('#searchButton').on('click', function() {
-    console.log("🔎 กดปุ่มค้นหา...");
-    loadPreparationTable();
-});
+// // ✅ ปุ่มค้นหา
+// $('#searchButton').on('click', function() {
+//     console.log("🔎 กดปุ่มค้นหา...");
+//     loadPreparationTable();
+// });
 
     // document.getElementById("searchButton").addEventListener("click", searchPreparation);
 

@@ -1,11 +1,6 @@
 async function searchPreparation() {
     
     const branch = localStorage.getItem("branch_code");
-    
-
-    
-
-
 
     $('#resultstock').DataTable({
         "processing": true,
