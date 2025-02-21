@@ -409,6 +409,29 @@ app.post('/api/save-preparation', async (req, res) => {
         await transaction.begin();
         const request = new sql.Request(transaction);
 
+
+        // ✅ ตรวจสอบค่า STATUS ก่อน
+        const checkStatusQuery = await request
+            .input('DI_REF', sql.NVarChar, DI_REF)
+            .input('SKU_CODE', sql.NVarChar, ProductCode)
+            .input('BRANCH_CODE', sql.VarChar, branch)
+            .query(`
+                SELECT STATUS FROM stock_summary 
+                WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE 
+                AND BRANCH_CODE = @BRANCH_CODE
+            `);
+
+        if (checkStatusQuery.recordset.length > 0) {
+            const currentStatus = checkStatusQuery.recordset[0].STATUS;
+
+            if (currentStatus == 4) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "ไม่สามารถบันทึกข้อมูลได้ เนื่องจากสถานะเป็น 'ตรวจจ่ายเรียบร้อย' แล้ว!" 
+                });
+            }
+        }
+
         // ✅ อัปเดต stock_summary (ใช้ request ใหม่)
         console.log("🔄 Updating stock_summary with", { DI_REF, ProductCode, PreparedQty, branch });
         

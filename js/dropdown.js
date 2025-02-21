@@ -109,7 +109,7 @@ async function loadStatusList() {
             statusDropdown.appendChild(option);
         });
 
-        statusDropdown.value = "รอการจัดเตรียม";
+        statusDropdown.value = "all";
     } catch (error) {
         console.error("Error loading status list:", error);
     }
@@ -160,7 +160,7 @@ document.addEventListener("click", async (event) => {
                 // ✅ รีโหลดตารางใหม่โดยไม่ต้องโหลดหน้าเว็บ
                 $('#resultstock').DataTable().ajax.reload();
             } else {
-                alert("เกิดข้อผิดพลาดในการบันทึก");
+                alert(result.message); // ✅ แจ้งเตือนเมื่อบันทึกไม่สำเร็จ
             }
         } catch (error) {
             console.error("Error saving data:", error);
@@ -201,3 +201,14 @@ loadStatusList();
 loadProductCategories();
 
 document.getElementById("searchButton").addEventListener("click", searchPreparation);
+document.addEventListener("DOMContentLoaded", function () {
+    const userRights = localStorage.getItem("user_rights"); // ดึงค่า user_rights
+    const filterStatus = document.getElementById("filterStatus"); // หา dropdown สถานะ
+
+    if (filterStatus && userRights === "user") {
+        // ✅ จำกัดสิทธิ์เฉพาะ user ให้เลือกได้แค่ "ทั้งหมด"
+        filterStatus.innerHTML = `<option value="all" selected>ทั้งหมด</option>`;
+        filterStatus.disabled = true;
+    }
+});
+

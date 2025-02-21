@@ -693,11 +693,7 @@ function updateTable(result) {
             if(document.getElementById("CheckQTY"+(index + 1)).disabled == true){
                 document.getElementById("ReceiveAll"+(index + 1)).hidden = true;
             }
-            
-            
-           
-
-            
+ 
         });
         messageDiv.innerHTML = ''; // ถ้าไม่มีข้อผิดพลาด
                 
