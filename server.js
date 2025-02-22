@@ -226,29 +226,51 @@ app.get('/api/branches', async (req, res) => {
 app.get('/api/product-categories', async (req, res) => {
     try {
         const pool = await getPool("HS54"); // ✅ เชื่อมต่อ HS54
+
+        // ✅ ดึงข้อมูลจากฐานข้อมูล โดยแยกตามหมวดหมู่ของ ICCAT_CODE
         const result = await pool.request().query(`
-            SELECT DISTINCT ICCAT_CODE, ICCAT_NAME
+            SELECT DISTINCT SUBSTRING(ICCAT_CODE, 1, 1) AS CategoryCode
             FROM ICCAT
             WHERE ICCAT_CODE LIKE 'A%' 
-               OR ICCAT_CODE LIKE 'B%'
                OR ICCAT_CODE LIKE 'K%'
                OR ICCAT_CODE LIKE 'M%'
                OR ICCAT_CODE LIKE 'O%'
-               OR ICCAT_CODE LIKE 'R%'
                OR ICCAT_CODE LIKE 'P%'
+               OR ICCAT_CODE LIKE 'Q%'
+               OR ICCAT_CODE LIKE 'R%'
                OR ICCAT_CODE LIKE 'S%'
                OR ICCAT_CODE LIKE 'T%'
                OR ICCAT_CODE LIKE 'V%'
-               OR ICCAT_CODE LIKE 'W%'
-            ORDER BY ICCAT_CODE
+            ORDER BY CategoryCode;
         `);
-        res.json({ success: true, data: result.recordset });
+
+        // ✅ แมปค่าให้ตรงกับหมวดหมู่ที่ต้องการ
+        const categoryMap = {
+            'A': 'เหล็ก',
+            'K': 'โครงสร้าง',
+            'M': 'ฮาร์ดแวร์',
+            'O': 'เฟอร์นิเจอร์',
+            'P': 'เกษตรและสวน',
+            'Q': 'ไฟฟ้า',
+            'R': 'เซรามิค',
+            'S': 'สุขภัณฑ์',
+            'T': 'สี',
+            'V': 'ไม้'
+        };
+
+        // ✅ จัดรูปแบบ JSON ที่จะส่งกลับไปยัง Frontend
+        const categories = result.recordset.map(row => ({
+            categoryCode: row.CategoryCode,
+            categoryName: categoryMap[row.CategoryCode] || "อื่นๆ"
+        }));
+
+        res.json({ success: true, data: categories });
+
     } catch (error) {
         console.error("❌ Error fetching product categories from HS54:", error);
         res.status(500).json({ success: false, message: "Database error" });
     }
 });
-
 
 app.post('/api/search-preparation', async (req, res) => {
     try {
@@ -270,38 +292,38 @@ app.post('/api/search-preparation', async (req, res) => {
             "ตรวจจ่ายเรียบร้อย": 4,
             "รอสโตร์ตรวจจ่าย": 5
         };
-        if(status != 'all'){
+        if (status !== 'all') {
             statusValue = statusMapping[status];
         }
-        
-        
 
         if (statusValue !== null) {
-
             request.input('Status', sql.Int, statusValue);
             console.log("✅ ค่าของ @Status ที่ใช้ใน SQL:", statusValue);
         }
 
-        // ✅ นับจำนวน Record ทั้งหมดก่อนแบ่งหน้า
+        // ✅ ตรวจสอบก่อนว่า @Category ถูกใส่ไปแล้วหรือยัง
+        if (category && category !== "all" && !request.parameters.hasOwnProperty('Category')) {
+            request.input('Category', sql.NVarChar, category + "%");
+        }
 
+        // ✅ นับจำนวน Record ทั้งหมดก่อนแบ่งหน้า
         let countQuery = `
             SELECT COUNT(*) AS totalRecords
-                FROM Stock_Summary SS WITH (NOLOCK)
-			RIGHT JOIN (Select ID
-						FROM Stock_Summary 
-						WHERE BRANCH_CODE = @Branch 
-						AND DATEPART(YEAR, DI_DATE) = 2024 
-						AND DATEPART(MONTH, DI_DATE) = 10
-					) as CHECKLATESTMONTH
-					on CHECKLATESTMONTH.ID =SS.ID
+            FROM Stock_Summary SS WITH (NOLOCK)
+            RIGHT JOIN (
+                SELECT ID
+                FROM Stock_Summary 
+                WHERE BRANCH_CODE = @Branch 
+                AND DATEPART(YEAR, DI_DATE) = 2024 
+                AND DATEPART(MONTH, DI_DATE) = 10
+            ) as CHECKLATESTMONTH
+            ON CHECKLATESTMONTH.ID = SS.ID
             WHERE SS.BRANCH_CODE = @Branch 
             AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง')  
         `;
-        
 
         if (category && category !== "all") {
-            request.input('Category', sql.NVarChar, category);
-            countQuery += ` AND SS.ICCAT_CODE = @Category`;
+            countQuery += ` AND SS.ICCAT_CODE LIKE @Category`;
         }
         if (documentID) { 
             request.input('documentID', sql.VarChar, documentID);
@@ -314,8 +336,8 @@ app.post('/api/search-preparation', async (req, res) => {
         const totalRecordsResult = await request.query(countQuery);
         const totalRecords = totalRecordsResult.recordset[0].totalRecords;
         console.log("✅ จำนวนข้อมูลทั้งหมด:", totalRecords);
-        // const request2 = pool.request();
-        // ✅ ใช้ ROW_NUMBER() และแบ่งหน้า (รองรับ SQL Server 2008)
+
+        // ✅ ใช้ ROW_NUMBER() และแบ่งหน้า
         let baseQuery = `
             SELECT * FROM (
                 SELECT 
@@ -326,27 +348,28 @@ app.post('/api/search-preparation', async (req, res) => {
                     SS.SKU_NAME, 
                     SS.ICCAT_NAME AS ProductCategoryName,
                     SS.TOTAL_SKU_QTY AS SoldQty, 
-                    0 AS ReceivedQty, 
                     SS.REMAINING_QTY AS PendingQty,
+                    SS.TOTAL_CR_QTY AS ReceivedQty,
                     SS.LATEST_PREPARE_QTY, 
                     SST.status AS STATUS,
                     SS.SKU_WL
                 FROM Stock_Summary SS WITH (NOLOCK)
                 LEFT JOIN stock_status SST WITH (NOLOCK) 
                     ON SS.STATUS = SST.ID
-				RIGHT JOIN (Select ID
-						FROM Stock_Summary 
-						WHERE BRANCH_CODE = @Branch
-						AND DATEPART(YEAR, DI_DATE) = 2024 
-						AND DATEPART(MONTH, DI_DATE) = 10
+                RIGHT JOIN (
+                    SELECT ID
+                    FROM Stock_Summary 
+                    WHERE BRANCH_CODE = @Branch
+                    AND DATEPART(YEAR, DI_DATE) = 2024 
+                    AND DATEPART(MONTH, DI_DATE) = 10
                 ) as CHECKLATESTMONTH
-					on CHECKLATESTMONTH.ID =SS.ID
+                ON CHECKLATESTMONTH.ID = SS.ID
                 WHERE SS.BRANCH_CODE = @Branch
                 AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง') 
         `;
 
         if (category && category !== "all") {
-            baseQuery += ` AND SS.ICCAT_CODE = @Category`;
+            baseQuery += ` AND SS.ICCAT_CODE LIKE @Category`;
         }
         if (documentID) { 
             baseQuery += ` AND SS.DI_REF = @documentID`;
@@ -355,12 +378,12 @@ app.post('/api/search-preparation', async (req, res) => {
             baseQuery += ` AND SS.STATUS = @Status`;
         }
 
+        // ✅ ควบคุม Pagination
         baseQuery += `) AS FilteredData
             WHERE RowNum BETWEEN @start + 1 AND @start + @length
             ORDER BY RowNum;
         `;
-       
-        // request2.input('BranchCode', sql.VarChar, branch);
+
         console.log("✅ SQL Query ที่ใช้:", baseQuery);
         const result = await request.query(baseQuery);
         console.log("✅ จำนวนข้อมูลที่ SQL ส่งมา:", result.recordset.length);
@@ -377,6 +400,7 @@ app.post('/api/search-preparation', async (req, res) => {
         res.status(500).json({ success: false, message: "Database error", error: error.message });
     }
 });
+
 
 
 
@@ -416,19 +440,42 @@ app.post('/api/save-preparation', async (req, res) => {
             .input('SKU_CODE', sql.NVarChar, ProductCode)
             .input('BRANCH_CODE', sql.VarChar, branch)
             .query(`
-                SELECT STATUS FROM stock_summary 
+                SELECT STATUS,REMAINING_QTY,SKU_WL FROM stock_summary 
                 WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE 
                 AND BRANCH_CODE = @BRANCH_CODE
             `);
 
         if (checkStatusQuery.recordset.length > 0) {
             const currentStatus = checkStatusQuery.recordset[0].STATUS;
-
+            const currentRemain = checkStatusQuery.recordset[0].REMAINING_QTY;
+            const currentlocation = checkStatusQuery.recordset[0].SKU_WL;
+            console.log("🔄 check stock_summary ", { currentStatus, currentRemain, currentlocation});
+            // return;
             if (currentStatus == 4) {
+                
                 return res.status(400).json({ 
                     success: false, 
                     message: "ไม่สามารถบันทึกข้อมูลได้ เนื่องจากสถานะเป็น 'ตรวจจ่ายเรียบร้อย' แล้ว!" 
                 });
+            }
+            if(currentlocation == 'สโตร์/คลัง' && currentRemain == 0){
+                
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "ไม่สามารถบันทึกข้อมูลได้เนื่องจาก สโตร์ตรวจจ่ายครบแล้ว รบกวนทำการค้นหาใหม่อีกครั้งเพื่อเช็คจำนวนคงเหลือล่าสุด" 
+                });
+            }
+            else if(currentlocation == 'สโตร์/คลัง' && currentRemain != 0 && currentStatus == 1){
+
+                
+                if((currentRemain - PreparedQty) < 0){
+                   
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: "ไม่สามารถบันทึกข้อมูลได้เนื่องจาก สโตร์ตรวจจ่ายไปแล่้วบางส่วน รบกวนทำการค้นหาใหม่อีกครั้งเพื่อเช็คจำนวนคงเหลือล่าสุด" 
+                    });
+                    
+                }
             }
         }
 

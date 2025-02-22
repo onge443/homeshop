@@ -190,7 +190,17 @@ document.getElementById('searchForm1').addEventListener('submit', async (event) 
 
                 }
             }else{
-                if(location == "คลังสินค้า" && parseInt(prepareQTY,10) == 0 || isNaN(prepareQTY)){
+                if(location == "สโตร์/คลัง"){
+                    status = "รอการจัดเตรียม";
+                    if(parseInt(subtotalInput.value, 10)>0){
+                        // status = "รอการจัดเตรียม";
+                        lastestppqty = 0;
+                    }else{
+                        status ="ตรวจจ่ายเรียบร้อย";
+                        //status ="รับของครบเรียบร้อย";
+                    }
+                }
+                else if(location == "คลังสินค้า" && parseInt(prepareQTY,10) == 0 || isNaN(prepareQTY)){
                     status = "รอการจัดเตรียม";
                 }
             }

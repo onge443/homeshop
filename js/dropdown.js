@@ -67,26 +67,58 @@ async function searchPreparation() {
 
 // ✅ โหลดข้อมูลประเภทสินค้า
 async function loadProductCategories() {
-    const categoryDropdown = document.getElementById('filterCategory');
-
     try {
         const response = await fetch('/api/product-categories');
-        if (!response.ok) throw new Error("Failed to fetch product categories");
+        const data = await response.json();
 
-        const { success, data } = await response.json();
-        if (!success) throw new Error("API returned failure response");
+        console.log("📌 API Response:", data); // ✅ Debug เช็ค API ส่งข้อมูลมาให้จริงไหม
 
-        categoryDropdown.innerHTML = '<option value="all">ทั้งหมด</option>'; // ✅ เพิ่มค่า "ทั้งหมด"
-        
-        data.forEach(category => {
+        if (!data.success) throw new Error("Failed to load categories");
+
+        const categoryDropdown = document.getElementById("filterCategory"); // ✅ เปลี่ยนเป็น filterCategory ให้ตรง HTML
+        categoryDropdown.innerHTML = ""; // ✅ ล้างค่าก่อนโหลดใหม่
+
+        // ✅ เพิ่มค่า "ทั้งหมด" เป็นค่าเริ่มต้น
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "all";
+        defaultOption.textContent = "ทั้งหมด";
+        categoryDropdown.appendChild(defaultOption);
+
+        // ✅ เพิ่มหมวดหมู่ที่ได้จาก API
+        data.data.forEach(category => {
             const option = document.createElement("option");
-            option.value = category.ICCAT_CODE; // ✅ ใช้ ICCAT_CODE แทน ICCAT_KEY
-            option.textContent = `${category.ICCAT_CODE} - ${category.ICCAT_NAME}`;
+            option.value = category.categoryCode;  // ✅ ส่ง categoryCode ไป API
+            option.textContent = category.categoryName;  // ✅ แสดงชื่อหมวดหมู่ที่กำหนด
             categoryDropdown.appendChild(option);
         });
+
+        console.log("📌 Dropdown Updated:", categoryDropdown.innerHTML); // ✅ Debug เช็คว่ามีการอัปเดต dropdown จริง
+
     } catch (error) {
-        console.error("Error loading product categories:", error);
+        console.error("❌ Error loading categories:", error);
     }
+}
+
+// ✅ โหลดข้อมูลเมื่อหน้าเว็บโหลด
+document.addEventListener("DOMContentLoaded", loadProductCategories);
+
+// ✅ ฟังก์ชันที่ใช้ส่งค่าหมวดหมู่ไปที่ API เมื่อเลือก dropdown
+document.getElementById("filterCategory").addEventListener("change", function() {
+    const selectedCategory = this.value; // ✅ ค่าที่เลือกจาก dropdown (A, K, M, O, ...)
+
+    // ✅ ส่งค่าไปที่ API /api/products (หรือ API ที่ใช้ดึงข้อมูล)
+    loadProductData(selectedCategory);
+});
+
+// ✅ ฟังก์ชันเรียก API ดึงข้อมูลสินค้าโดยส่ง `categoryCode`
+function loadProductData(category) {
+    fetch(`/api/products?category=${category}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("📌 ข้อมูลสินค้า:", data);
+            updateProductTable(data.data); // ✅ ฟังก์ชันอัปเดตตารางสินค้า
+        })
+        .catch(error => console.error("❌ Error fetching product data:", error));
 }
 // ✅ โหลดประเภทสินค้าตอนหน้าเว็บโหลด
 document.addEventListener("DOMContentLoaded", loadProductCategories);
