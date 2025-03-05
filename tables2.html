@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -22,10 +21,19 @@
 
     <!-- Custom styles for this page -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
-   
-    <!-- ลิงก์ไฟล์ CSS ใหม่ -->
-    <!-- <link href="css/custom.css" rel="stylesheet"> -->
 
+    <!-- Custom inline style to adjust container padding without replacing bootstrap -->
+    <style>
+        /* ลด padding ด้านข้างเล็กน้อยเพื่อให้เนื้อหากว้างขึ้น */
+        .container-fluid {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        /* ลด margin ระหว่างการ์ดเล็กน้อย */
+        .card {
+            margin-bottom: 15px;
+        }
+    </style>
 </head>
 
 <body id="page-top">
@@ -57,9 +65,8 @@
             <!-- Divider -->
             <hr class="sidebar-divider">
 
-
-             <!-- Nav Item - Tables -->
-             <li class="nav-item">
+            <!-- Nav Item - Tables -->
+            <li class="nav-item">
                 <a class="nav-link" href="tables">
                     <i class="fas fa-fw fa-table"></i>
                     <span>ใบตรวจจ่าย</span></a>
@@ -71,12 +78,11 @@
             </li>
 
             <!-- Nav Item - Charts -->
-            <li class="nav-item" id = "Report">
+            <li class="nav-item" id="Report">
                 <a class="nav-link" href="charts">
                     <i class="fas fa-fw fa-chart-area"></i>
                     <span>รายงาน</span></a>
             </li>
-
 
             <!-- Divider -->
             <hr class="sidebar-divider d-none d-md-block">
@@ -97,7 +103,6 @@
 
                 <!-- Topbar -->
                 <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-
                     <!-- Sidebar Toggle (Topbar) -->
                     <form class="form-inline">
                         <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
@@ -105,28 +110,9 @@
                         </button>
                     </form>
 
-                    <!-- Topbar Search
-                    <form
-                        class="d-none d-sm-inline-block form-inline mr-auto ml-md-3 my-2 my-md-0 mw-100 navbar-search">
-                        <div class="input-group">
-                            <input type="text" class="form-control bg-light border-0 small" placeholder="Search for..."
-                                aria-label="Search" aria-describedby="basic-addon2">
-                            <div class="input-group-append">
-                                <button class="btn btn-primary" type="button">
-                                    <i class="fas fa-search fa-sm"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </form> -->
-
                     <!-- Topbar Navbar -->
                     <ul class="navbar-nav ml-auto">
-
-                        <!-- Nav Item - Search Dropdown (Visible Only XS) -->
-                        
-    
                         <div class="topbar-divider d-none d-sm-block"></div>
-    
                         <!-- Nav Item - User Information -->
                         <li class="nav-item dropdown no-arrow">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
@@ -145,51 +131,49 @@
                                 </a>
                             </div>
                         </li>
-    
-                    </ul>   
-    
-                    </nav>
+                    </ul>
+                </nav>
                 <!-- End of Topbar -->
 
                 <!-- Begin Page Content -->
-
-                
                 <div class="container-fluid">
 
                     <!-- Page Heading -->
                     <h1 class="h3 mb-2 text-gray-800">ประเภทสินค้า</h1>
                     
                     <div class="row">
-                        <div class="col-xl-12 col-md-12 mb-3">
+                        <div class="col-xl-12 col-md-12">
                             <div class="card border-light shadow">
                                 <div class="card-header">
                                     <h5 class="card-title">ค้นหา</h5>  
                                 </div>
                                 <div class="card-body">
                                     <div class="row">
+                                        <!-- Product Category Filter -->
                                         <div class="col-md-4">
                                             <div class="form-group">
                                                 <label for="filterCategory">ประเภทสินค้า:</label>
                                                 <select id="filterCategory" class="form-control">
                                                     <option value="all" selected>ทั้งหมด</option>
+                                                    <!-- Options will be populated dynamically -->
                                                 </select>
                                             </div>
                                         </div>
-                                            <!-- สถานะ -->
+                                        <!-- Status Filter as Button Group -->
                                         <div class="col-md-4">
                                             <div class="form-group">
-                                                <label for="filterStatus">สถานะ:</label>
-                                                <select id="filterStatus" class="form-control">
-                                                    <option value="1" selected>รอการจัดเตรียม</option>
-                                                    <option value="2">รอการตรวจจ่าย</option>
-                                                    <option value="3">จัดเตรียมเรียบร้อย</option>
-                                                    <option value="4">ตรวจจ่ายเรียบร้อย</option>
-                                                    <option value="5">รอสโตร์ตรวจจ่าย</option>
-                                                </select>
+                                                <label>สถานะ:</label>
+                                                <div id="statusButtons" class="btn-group" role="group">
+                                                    <button type="button" class="btn btn-outline-primary status-btn" data-status="1">รอการจัดเตรียม</button>
+                                                    <button type="button" class="btn btn-outline-primary status-btn" data-status="2">รอการตรวจจ่าย</button>
+                                                    <button type="button" class="btn btn-outline-primary status-btn" data-status="3">จัดเตรียมเรียบร้อย</button>
+                                                    <button type="button" class="btn btn-outline-primary status-btn" data-status="4">ตรวจจ่ายเรียบร้อย</button>
+                                                    <button type="button" class="btn btn-outline-primary status-btn" data-status="5">รอสโตร์ตรวจจ่าย</button>
+                                                    <button type="button" class="btn btn-outline-primary status-btn" data-status="all">ทั้งหมด</button>
+                                                </div>
                                             </div>
                                         </div>
-                                        
-                                            <!-- เลขที่เอกสาร -->
+                                        <!-- Document ID Filter -->
                                         <div class="col-md-4">
                                             <div class="form-group">
                                                 <label for="filterDocument">เลขที่เอกสาร:</label>
@@ -198,12 +182,11 @@
                                         </div>      
                                     </div>
                                 </div>
-                                
                                 <div class="card-footer">
-                                    <div class = "row">
+                                    <div class="row">
                                         <div class="col-auto mr-auto"></div>
                                         <div class="col-auto">
-                                            <button id="searchButton" class="btn btn-primary" type="submit">
+                                            <button id="searchButton" class="btn btn-primary" type="button">
                                                 ค้นหา
                                             </button>
                                         </div>    
@@ -213,59 +196,42 @@
                         </div> 
                     </div>
                     
-                    
                     <div class="row">
-                        <div class="col-xl-12 col-md-12 mb-1">
-                
-                    <!-- <p class="mb-4">DataTables is a third party plugin that is used to generate the demo table below.
-                        For more information about DataTables, please visit the <a target="_blank"
-                            href="https://datatables.net">official DataTables documentation</a>.</p> -->
-
-                    <!-- DataTales Example -->
-                    <div class="card shadow mb-4" id="dataTableContainer">
-                        <div class="card-header">
-                            <h6 class="m-0 font-weight-bold text-primary">ตารางจัดเตรียมสินค้า</h6>
+                        <div class="col-xl-12 col-md-12">
+                            <!-- DataTable Card -->
+                            <div class="card shadow" id="dataTableContainer">
+                                <div class="card-header">
+                                    <h6 class="m-0 font-weight-bold text-primary">ตารางจัดเตรียมสินค้า</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered" id="resultstock" width="100%" cellspacing="0">
+                                            <thead>
+                                                <tr>
+                                                    <!-- <th>ลำดับ</th>
+                                                    <th>เลขที่เอกสาร</th>
+                                                    <th>ตำแหน่งเก็บ</th>
+                                                    <th>ประเภทสินค้า</th>
+                                                    <th>รหัสสินค้า</th> -->
+                                                    
+                                                </tr>
+                                            </thead>
+                                            <tbody>  
+                                                <!-- Data will be populated via DataTables -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-bordered" id="resultstock" width="100%" cellspacing="0">
-                                    <thead>
-                                        <tr>
-                                            <th>ลำดับ</th>
-                                            <th>เลขที่เอกสาร</th>  <!-- DI_REF -->
-                                            <th>ตำแหน่งเก็บ</th>  <!-- SKU_WL -->
-                                            <th>ประเภทสินค้า</th>  <!-- ICCAT_KEY -->
-                                            <th>รหัสสินค้า</th>  <!-- SKU_CODE -->
-                                            <th>ชื่อสินค้า</th>  <!-- SKU_NAME -->
-                                            <th>จำนวนขาย</th>  <!-- TOTAL_SKU_QTY -->
-                                            <th>จำนวนที่รับไปแล้ว</th>  <!-- Total_CR_QTY -->
-                                            <th>จำนวนคงค้าง</th>  <!-- REMAINING_QTY -->
-                                            <th>จำนวนจัดเตรียม</th>  <!-- LATEST_PREPARE_QTY -->
-                                            <th>สถานะ</th>  <!-- STATUS -->
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>  
-                                
-                                    </tbody>
-                                </table>
-                            </div>
-                            </div>
-                            
+                    </div>
 
-                              
-                       
-                    </div>
-                    </div>
-                    </div>
                 </div>
-            </div>
-                <!-- /.container-fluid -->
+                <!-- End of Page Content -->
 
             </div>
             <!-- End of Main Content -->
-            </div>
+
             <!-- Footer -->
             <footer class="sticky-footer bg-white">
                 <div class="container my-auto">
@@ -289,7 +255,7 @@
 
     <!-- Logout Modal-->
     <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
-        aria-hidden="true">
+         aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -298,15 +264,16 @@
                         <span aria-hidden="true">×</span>
                     </button>
                 </div>
-                <div class="modal-body">Select "Logout" below if you are ready to end your current session.</div>
+                <div class="modal-body">
+                    Select "Logout" below if you are ready to end your current session.
+                </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
-                    <button class="btn btn-primary" id="logoutButton" >Logout</button>
+                    <button class="btn btn-primary" id="logoutButton">Logout</button>
                 </div>
             </div>
         </div>
     </div>
-   
 
     <!-- Bootstrap core JavaScript-->
     <script src="vendor/jquery/jquery.min.js"></script>
@@ -324,9 +291,8 @@
 
     <!-- Page level custom scripts -->
     <script src="js/demo/datatables-demo.js"></script>
-    <!-- เพิ่ม script สำหรับ Dropdown -->
+    <!-- Script for Dropdown/Buttons functionality -->
     <script src="js/dropdown.js" defer></script>
-
 
 <script>
 // let table; // ✅ เก็บ instance ของ DataTables

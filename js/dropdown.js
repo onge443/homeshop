@@ -1,5 +1,4 @@
 async function searchPreparation() {
-    
     const branch = localStorage.getItem("branch_code");
 
     $('#resultstock').DataTable({
@@ -10,60 +9,56 @@ async function searchPreparation() {
             "type": "POST",
             "contentType": "application/json",
             "data": function (d) {
-    const selectedStatus = document.getElementById("filterStatus").value;
-    return JSON.stringify({
-        category: document.getElementById("filterCategory").value,
-        status: selectedStatus !== "all" ? selectedStatus : "all", // ✅ ใช้ค่าจาก dropdown
-        documentID: document.getElementById("filterDocument").value,
-        branch: localStorage.getItem("branch_code"),
-        start: d.start,
-        length: d.length
-    });
-},
-                "dataSrc": function (json) {
-            console.log("✅ จำนวนข้อมูลที่ API ส่งมา:", json.data.length);
-            return json.data;
-                }
-        },
-        "pageLength": 10,  // ✅ กำหนดค่าเริ่มต้นเป็น 10 แถว
-        "lengthMenu": [[10, 25, 50, 100], [10, 25, 50, 100]],  // ✅ ให้เลือกจำนวนแถวได้
-        "scrollY": false,  // ❌ ปิดการใช้ `scrollY` (อาจทำให้จำนวนแถวไม่ตรง)
-        "scrollCollapse": false,  // ❌ ปิดเพื่อป้องกัน DataTables คำนวณความสูงผิดพลาด
-        "deferRender": true,
-        "scroller": true,
-        "columns": [
-            { "data": "RowNum" },
-            { "data": "DocumentID" },
-            { "data": "SKU_WL" },
-            { "data": "ProductCategoryName" },
-            { "data": "SKU_CODE" },
-            { "data": "SKU_NAME" },
-            { "data": "SoldQty" },
-            { "data": "ReceivedQty" },
-            { "data": "PendingQty" },
-            { 
-            "data": "LATEST_PREPARE_QTY",
-                "render": function (data, type, row) {
-                        return `<input type='number' class='form-control prepare-input' value='${data || 0}' 
-                            data-doc='${row.DocumentID}' 
-                            data-prod='${row.SKU_CODE}' 
-                            max ='${row.PendingQty}' 
-                            min='0' >`;
-                }
+                return JSON.stringify({
+                    branch: branch,
+                    start: d.start,
+                    length: d.length,
+                    status: window.selectedStatus, // ส่งค่า status ที่เลือกจากปุ่ม
+                    category: document.getElementById("filterCategory").value,
+                    documentID: document.getElementById("filterDocument").value
+                    // เพิ่ม filter อื่นๆ ถ้ามี
+                });
             },
-            { "data": "STATUS" },
-            {
-                "data": null,
-                "render": function (data, type, row) {
-                    return `<button class='btn btn-success btn-save' data-doc='${row.DocumentID}' data-prod='${row.SKU_CODE}'>บันทึก</button>`;
-                }
+            "dataSrc": function (json) {
+                console.log("✅ จำนวนข้อมูลที่ API ส่งมา:", json.data.length);
+                return json.data;
+            }
+        },
+        "pageLength": 10,
+        "columns": [
+            { 
+              "data": null, 
+              "render": function(data, type, row, meta) { return meta.row + 1; },
+              "title": "ลำดับ" 
+            },
+            { 
+              "data": "AR_NAME", 
+              "title": "ชื่อลูกค้า"  // เปลี่ยน title ให้เป็นชื่อภาษาไทย
+            },
+            { 
+              "data": "DocumentID", 
+              "title": "เลขที่เอกสาร"  // DocumentID คือ DI_REF ที่ API ส่งกลับ
+            },
+            { 
+              "data": "DI_DATE", 
+              "title": "วันที่",
+              "render": function(data, type, row) { 
+                  return data ? new Date(data).toLocaleDateString() : ''; 
+              }
+            },
+            { 
+              "data": null, 
+              "title": "ดำเนินการ",
+              "render": function(data, type, row) {
+                  return `<button class="btn btn-primary btn-detail" data-doc="${row.DocumentID}">
+                            เริ่มจัด
+                          </button>`;
+              }
             }
         ],
-        "destroy": true  // ✅ ป้องกัน DataTables ซ้ำซ้อน
+        "destroy": true
     });
-
 }
-
 
 // ✅ โหลดข้อมูลประเภทสินค้า
 async function loadProductCategories() {
@@ -123,83 +118,116 @@ function loadProductData(category) {
 // ✅ โหลดประเภทสินค้าตอนหน้าเว็บโหลด
 document.addEventListener("DOMContentLoaded", loadProductCategories);
 
-// ✅ โหลดข้อมูลสถานะ
-async function loadStatusList() {
-    const statusDropdown = document.getElementById('filterStatus');
+// ฟังก์ชันโหลดปุ่มสถานะ (Status Buttons) ในหน้า tables2.html
+async function loadStatusButtons() {
+    const statusButtonsContainer = document.getElementById('statusButtons');
+    if (!statusButtonsContainer) return;
+    statusButtonsContainer.innerHTML = ''; // ล้างข้อมูลเดิม
 
-    try {
-        const response = await fetch('/api/status-list');
-        if (!response.ok) throw new Error("Failed to fetch status list");
+    // กำหนดรายการสถานะที่ต้องการ (สามารถปรับแก้ได้ตามความเหมาะสม)
+    const statuses = [
+        { value: 'all', text: 'ทั้งหมด' },
+        { value: '1', text: 'รอการจัดเตรียม' },
+        { value: '2', text: 'รอการตรวจจ่าย' },
+        { value: '3', text: 'จัดเตรียมเรียบร้อย' },
+        { value: '4', text: 'ตรวจจ่ายเรียบร้อย' },
+        { value: '5', text: 'รอสโตร์ตรวจจ่าย' }
+    ];
 
-        const { data } = await response.json();
-        statusDropdown.innerHTML = '<option value="all">ทั้งหมด</option>';
-        
-        data.forEach(status => {
-            const option = document.createElement("option");
-            option.value = status.status;
-            option.textContent = status.status;
-            statusDropdown.appendChild(option);
+    statuses.forEach(status => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-primary status-btn';
+        btn.dataset.status = status.value;
+        btn.textContent = status.text;
+        statusButtonsContainer.appendChild(btn);
+    });
+
+    // กำหนดค่าเริ่มต้น (เลือก "ทั้งหมด" เป็นค่า default)
+    window.selectedStatus = 'all';
+
+    // เพิ่ม event listener ให้กับปุ่มสถานะทุกปุ่ม
+    document.querySelectorAll('.status-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            // เอา active class ออกจากปุ่มทั้งหมด
+            document.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('active'));
+            // เพิ่ม active class ให้กับปุ่มที่ถูกคลิก
+            this.classList.add('active');
+            window.selectedStatus = this.dataset.status;
         });
-
-        statusDropdown.value = "all";
-    } catch (error) {
-        console.error("Error loading status list:", error);
-    }
+    });
 }
 
+
 // ✅ บันทึกข้อมูลเมื่อกดปุ่ม
-document.addEventListener("click", async (event) => {
-    if (event.target.classList.contains("btn-save")) {
-        const button = event.target;
-        const row = button.closest("tr");
-        const docID = button.getAttribute("data-doc");
-        const SKUCode = button.getAttribute("data-prod");
-        const qtyInput = row.querySelector(".prepare-input").value.trim();
-        const username = localStorage.getItem("username") || "ระบบ";
-        const branch = localStorage.getItem("branch_code");
+// document.addEventListener("click", async (event) => {
+//     if (event.target.classList.contains("btn-save")) {
+//         const button = event.target;
+//         const row = button.closest("tr");
+//         const docID = button.getAttribute("data-doc");
+//         const SKUCode = button.getAttribute("data-prod");
+//         const qtyInput = row.querySelector(".prepare-input").value.trim();
+//         const username = localStorage.getItem("username") || "ระบบ";
+//         const branch = localStorage.getItem("branch_code");
 
-        if (!docID || !SKUCode) {
-            alert("ไม่พบข้อมูลเอกสารหรือรหัสสินค้า");
-            return;
-        }
-        if (!qtyInput) {
-            alert("กรุณากรอกจำนวนจัดเตรียมก่อนกดบันทึก!");
-            return;
-        }
+//         if (!docID || !SKUCode) {
+//             alert("ไม่พบข้อมูลเอกสารหรือรหัสสินค้า");
+//             return;
+//         }
+//         if (!qtyInput) {
+//             alert("กรุณากรอกจำนวนจัดเตรียมก่อนกดบันทึก!");
+//             return;
+//         }
 
-        const payload = {
-            DI_REF: docID,
-            ProductCode: SKUCode,
-            PreparedQty: parseInt(qtyInput, 10),
-            Username: username,
-            branch: branch
-        };
+//         const payload = {
+//             DI_REF: docID,
+//             ProductCode: SKUCode,
+//             PreparedQty: parseInt(qtyInput, 10),
+//             Username: username,
+//             branch: branch
+//         };
 
-        try {
-            const response = await fetch('/api/save-preparation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+//         try {
+//             const response = await fetch('/api/save-preparation', {
+//                 method: 'POST',
+//                 headers: { 'Content-Type': 'application/json' },
+//                 body: JSON.stringify(payload)
+//             });
 
-            const result = await response.json();
+//             const result = await response.json();
 
-            if (result.success) {
-                alert("บันทึกข้อมูลสำเร็จ!");
-                row.querySelector("td:nth-last-child(2)").textContent = "จัดเตรียมสำเร็จ";
-                button.style.display = "none"; // ✅ ซ่อนปุ่ม "บันทึก"
+//             if (result.success) {
+//                 alert("บันทึกข้อมูลสำเร็จ!");
+//                 row.querySelector("td:nth-last-child(2)").textContent = "จัดเตรียมสำเร็จ";
+//                 button.style.display = "none"; // ✅ ซ่อนปุ่ม "บันทึก"
                 
-                // ✅ รีโหลดตารางใหม่โดยไม่ต้องโหลดหน้าเว็บ
-                $('#resultstock').DataTable().ajax.reload();
-            } else {
-                alert(result.message); // ✅ แจ้งเตือนเมื่อบันทึกไม่สำเร็จ
-            }
-        } catch (error) {
-            console.error("Error saving data:", error);
-            alert("เกิดข้อผิดพลาดในการบันทึก");
+//                 // ✅ รีโหลดตารางใหม่โดยไม่ต้องโหลดหน้าเว็บ
+//                 $('#resultstock').DataTable().ajax.reload();
+//             } else {
+//                 alert(result.message); // ✅ แจ้งเตือนเมื่อบันทึกไม่สำเร็จ
+//             }
+//         } catch (error) {
+//             console.error("Error saving data:", error);
+//             alert("เกิดข้อผิดพลาดในการบันทึก");
+//         }
+    document.addEventListener("DOMContentLoaded", function() {
+    // เพิ่ม event listener สำหรับการคลิกใน document
+    document.addEventListener("click", function(event) {
+        // ตรวจสอบว่าปุ่มที่ถูกคลิกมี class "btn-detail" หรือไม่
+        if (event.target.classList.contains("btn-detail")) {
+            // ดึงค่า di_ref จาก data attribute ของปุ่ม
+            const docID = event.target.getAttribute("data-doc");
+            if (!docID) return; // ถ้าไม่มีค่า di_ref ก็ไม่ทำอะไร
+            // เปลี่ยนหน้าไปที่ prepdetail.html พร้อมส่ง di_ref ใน query string
+            window.location.href = `/prepdetail?di_ref=${encodeURIComponent(docID)}`;
+            // หากต้องการเปิดในแท็บใหม่ ใช้ window.open() แทน:
+            // window.open(`/prepdetail.html?di_ref=${encodeURIComponent(docID)}`, '_blank');
         }
-    }
+    });
 });
+
+// }
+// });
 async function PrepareCheckRight() {
     const username = localStorage.getItem("username");
     const rights = localStorage.getItem("user_rights");
@@ -229,18 +257,21 @@ document.getElementById('logoutButton').addEventListener('click', function() {
 
 PrepareCheckRight();
 // ✅ โหลดข้อมูลเมื่อเปิดหน้าเว็บ
-loadStatusList();
-loadProductCategories();
+document.addEventListener("DOMContentLoaded", function () {
+    loadStatusButtons();
+    loadProductCategories();
+    // โหลดสถานะ/หมวดหมู่สินค้าตามที่ต้องการ
+});
 
 document.getElementById("searchButton").addEventListener("click", searchPreparation);
 document.addEventListener("DOMContentLoaded", function () {
     const userRights = localStorage.getItem("user_rights"); // ดึงค่า user_rights
-    const filterStatus = document.getElementById("filterStatus"); // หา dropdown สถานะ
+    // const filterStatus = document.getElementById("filterStatus"); // หา dropdown สถานะ
 
-    if (filterStatus && userRights === "user") {
-        // ✅ จำกัดสิทธิ์เฉพาะ user ให้เลือกได้แค่ "ทั้งหมด"
-        filterStatus.innerHTML = `<option value="all" selected>ทั้งหมด</option>`;
-        filterStatus.disabled = true;
-    }
+    // if (filterStatus && userRights === "user") {
+    //     // ✅ จำกัดสิทธิ์เฉพาะ user ให้เลือกได้แค่ "ทั้งหมด"
+    //     filterStatus.innerHTML = `<option value="all" selected>ทั้งหมด</option>`;
+    //     filterStatus.disabled = true;
+    // }
 });
 

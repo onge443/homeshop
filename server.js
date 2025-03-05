@@ -274,134 +274,143 @@ app.get('/api/product-categories', async (req, res) => {
 
 app.post('/api/search-preparation', async (req, res) => {
     try {
-        const { category, status, documentID, branch, start, length } = req.body;
-        console.log("✅ ค่าที่ได้รับจาก Frontend:", { category, status, documentID, branch, start, length });
-
-        const pool = await getPool('TestOng');
-        const request = pool.request();
-        request.input('Branch', sql.VarChar, branch);
-        request.input('start', sql.Int, start);  
-        request.input('length', sql.Int, length);
-
-        // ✅ แปลงค่า `status` เป็นตัวเลขก่อนส่งเข้า SQL
-        let statusValue = null;
-        const statusMapping = {
-            "รอการจัดเตรียม": 1,
-            "รอการตรวจจ่าย": 2,
-            "จัดเตรียมเรียบร้อย": 3,
-            "ตรวจจ่ายเรียบร้อย": 4,
-            "รอสโตร์ตรวจจ่าย": 5
-        };
-        if (status !== 'all') {
-            statusValue = statusMapping[status];
-        }
-
-        if (statusValue !== null) {
-            request.input('Status', sql.Int, statusValue);
-            console.log("✅ ค่าของ @Status ที่ใช้ใน SQL:", statusValue);
-        }
-
-        // ✅ ตรวจสอบก่อนว่า @Category ถูกใส่ไปแล้วหรือยัง
-        if (category && category !== "all" && !request.parameters.hasOwnProperty('Category')) {
-            request.input('Category', sql.NVarChar, category + "%");
-        }
-
-        // ✅ นับจำนวน Record ทั้งหมดก่อนแบ่งหน้า
-        let countQuery = `
-            SELECT COUNT(*) AS totalRecords
-            FROM Stock_Summary SS WITH (NOLOCK)
-            RIGHT JOIN (
-                SELECT ID
-                FROM Stock_Summary 
-                WHERE BRANCH_CODE = @Branch 
-                AND DATEPART(YEAR, DI_DATE) = 2024 
-                AND DATEPART(MONTH, DI_DATE) = 10
-            ) as CHECKLATESTMONTH
-            ON CHECKLATESTMONTH.ID = SS.ID
-            WHERE SS.BRANCH_CODE = @Branch 
-            AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง')  
-        `;
-
-        if (category && category !== "all") {
-            countQuery += ` AND SS.ICCAT_CODE LIKE @Category`;
-        }
-        if (documentID) { 
-            request.input('documentID', sql.VarChar, documentID);
-            countQuery += ` AND SS.DI_REF = @documentID`;
-        }
-        if (statusValue !== null) {
-            countQuery += ` AND SS.STATUS = @Status`;
-        }
-
-        const totalRecordsResult = await request.query(countQuery);
-        const totalRecords = totalRecordsResult.recordset[0].totalRecords;
-        console.log("✅ จำนวนข้อมูลทั้งหมด:", totalRecords);
-
-        // ✅ ใช้ ROW_NUMBER() และแบ่งหน้า
-        let baseQuery = `
-            SELECT * FROM (
-                SELECT 
-                    ROW_NUMBER() OVER (ORDER BY SS.DI_DATE DESC, SS.DI_REF) AS RowNum,
-                    SS.DI_REF AS DocumentID, 
-                    SS.DI_DATE, 
-                    SS.SKU_CODE, 
-                    SS.SKU_NAME, 
-                    SS.ICCAT_NAME AS ProductCategoryName,
-                    SS.TOTAL_SKU_QTY AS SoldQty, 
-                    SS.REMAINING_QTY AS PendingQty,
-                    SS.TOTAL_CR_QTY AS ReceivedQty,
-                    SS.LATEST_PREPARE_QTY, 
-                    SST.status AS STATUS,
-                    SS.SKU_WL
-                FROM Stock_Summary SS WITH (NOLOCK)
-                LEFT JOIN stock_status SST WITH (NOLOCK) 
-                    ON SS.STATUS = SST.ID
-                RIGHT JOIN (
-                    SELECT ID
-                    FROM Stock_Summary 
-                    WHERE BRANCH_CODE = @Branch
-                    AND DATEPART(YEAR, DI_DATE) = 2024 
-                    AND DATEPART(MONTH, DI_DATE) = 10
-                ) as CHECKLATESTMONTH
-                ON CHECKLATESTMONTH.ID = SS.ID
-                WHERE SS.BRANCH_CODE = @Branch
-                AND SS.SKU_WL IN ('คลังสินค้า', 'สโตร์/คลัง') 
-        `;
-
-        if (category && category !== "all") {
-            baseQuery += ` AND SS.ICCAT_CODE LIKE @Category`;
-        }
-        if (documentID) { 
-            baseQuery += ` AND SS.DI_REF = @documentID`;
-        }
-        if (statusValue !== null) {
-            baseQuery += ` AND SS.STATUS = @Status`;
-        }
-
-        // ✅ ควบคุม Pagination
-        baseQuery += `) AS FilteredData
-            WHERE RowNum BETWEEN @start + 1 AND @start + @length
-            ORDER BY RowNum;
-        `;
-
-        console.log("✅ SQL Query ที่ใช้:", baseQuery);
-        const result = await request.query(baseQuery);
-        console.log("✅ จำนวนข้อมูลที่ SQL ส่งมา:", result.recordset.length);
-
-        res.json({
-            draw: req.body.draw,
-            recordsTotal: totalRecords,
-            recordsFiltered: totalRecords,
-            data: result.recordset
-        });
-
+      const { category, status, documentID, branch, start, length, draw } = req.body;
+      console.log("✅ ค่าที่ได้รับจาก Frontend:", { category, status, documentID, branch, start, length, draw });
+  
+      const pool = await getPool("TestOng");
+      const request = pool.request();
+      request.input("Branch", sql.VarChar, branch);
+      request.input("start", sql.Int, start);
+      request.input("length", sql.Int, length);
+  
+      // แปลงค่าสถานะ: ถ้าไม่ใช่ "all" ให้แปลงเป็นตัวเลข
+      let statusValue = null;
+      if (status && status !== "all") {
+        statusValue = parseInt(status, 10);
+        request.input("Status", sql.Int, statusValue);
+        console.log("✅ ค่าของ @Status ที่ใช้ใน SQL:", statusValue);
+      }
+  
+      // ตรวจสอบ filter category
+      if (category && category !== "all") {
+        request.input("Category", sql.NVarChar, category + "%");
+      }
+      // ตรวจสอบ documentID
+      if (documentID) {
+        request.input("documentID", sql.VarChar, documentID);
+      }
+  
+      // --- คำนวณจำนวน record ทั้งหมด (summary) ---
+      let countQuery = `
+        SELECT COUNT(*) AS totalRecords
+        FROM (
+          SELECT DI_REF
+          FROM Stock_Summary WITH (NOLOCK)
+          WHERE BRANCH_CODE = @Branch
+            AND DATEPART(YEAR, DI_DATE) = 2024 
+            AND DATEPART(MONTH, DI_DATE) = 10
+      `;
+      if (documentID) {
+        countQuery += ` AND DI_REF = @documentID`;
+      }
+      if (category && category !== "all") {
+        countQuery += ` AND ICCAT_CODE LIKE @Category`;
+      }
+      if (statusValue !== null) {
+        countQuery += ` AND STATUS = @Status`;
+      }
+      countQuery += `
+          GROUP BY DI_REF
+        ) AS SummaryCount;
+      `;
+      console.log("✅ Count Query:", countQuery);
+      const countResult = await request.query(countQuery);
+      // countResult.recordset[0].totalRecords จะเป็นผลรวมของกลุ่มทั้งหมด
+      const totalRecords = countResult.recordset[0] ? countResult.recordset[0].totalRecords : 0;
+      console.log("✅ จำนวนข้อมูลทั้งหมด:", totalRecords);
+  
+      // --- คำสั่ง query แบบ summary ด้วย CTE สำหรับ pagination ---
+      let summaryQuery = `
+        WITH Summary AS (
+          SELECT 
+            ROW_NUMBER() OVER (ORDER BY MIN(DI_DATE) DESC, DI_REF) AS RowNum,
+            DI_REF AS DocumentID,
+            MIN(DI_DATE) AS DI_DATE,
+            MIN(AR_NAME) AS AR_NAME
+          FROM Stock_Summary WITH (NOLOCK)
+          WHERE BRANCH_CODE = @Branch
+            AND DATEPART(YEAR, DI_DATE) = 2024 
+            AND DATEPART(MONTH, DI_DATE) = 10
+      `;
+      if (documentID) {
+        summaryQuery += ` AND DI_REF = @documentID`;
+      }
+      if (category && category !== "all") {
+        summaryQuery += ` AND ICCAT_CODE LIKE @Category`;
+      }
+      if (statusValue !== null) {
+        summaryQuery += ` AND STATUS = @Status`;
+      }
+      summaryQuery += `
+          GROUP BY DI_REF
+        )
+        SELECT * FROM Summary
+        WHERE RowNum BETWEEN @start + 1 AND @start + @length
+        ORDER BY RowNum;
+      `;
+      console.log("✅ Summary Query ที่ใช้:", summaryQuery);
+      const result = await request.query(summaryQuery);
+      console.log("✅ จำนวนข้อมูลที่ SQL ส่งมา:", result.recordset.length);
+  
+      res.json({
+        draw: draw,
+        recordsTotal: totalRecords,
+        recordsFiltered: totalRecords,
+        data: result.recordset
+      });
     } catch (error) {
-        console.error("❌ Database Error:", error);
-        res.status(500).json({ success: false, message: "Database error", error: error.message });
+      console.error("❌ Database Error:", error);
+      res.status(500).json({ success: false, message: "Database error", error: error.message });
     }
-});
-
-
+  });
+    
+app.post('/api/get-preparation-details', async (req, res) => {
+    try {
+      const { DI_REF } = req.body;
+      if (!DI_REF) {
+        return res.status(400).json({ success: false, message: 'DI_REF is required' });
+      }
+      const pool = await getPool("TestOng");
+      const result = await pool.request()
+        .input("DI_REF", sql.VarChar, DI_REF)
+        .query(`
+          SELECT 
+            DI_REF, 
+            DI_DATE, 
+            SKU_WL,
+            SKU_CODE, 
+            SKU_NAME,
+            ICCAT_NAME AS ProductCategoryName, 
+            TOTAL_SKU_QTY AS SoldQty, 
+            TOTAL_CR_QTY AS ReceivedQty, 
+            REMAINING_QTY AS PendingQty, 
+            LATEST_PREPARE_QTY, 
+            STATUS
+          FROM Stock_Summary
+          WHERE DI_REF = @DI_REF
+        `);
+      if (result.recordset.length > 0) {
+        res.json({ success: true, data: result.recordset });
+      } else {
+        res.json({ success: false, message: 'No data found for this DI_REF' });
+      }
+    } catch (error) {
+      console.error("Error in /api/get-preparation-details:", error);
+      res.status(500).json({ success: false, message: "Database error", error: error.message });
+    }
+  });
+  
+  
 
 
 app.get('/api/status-list', async (req, res) => {
@@ -1010,6 +1019,10 @@ app.get('/login', (req, res) => {
 });
 app.get('/tables2', (req, res) => {
     res.sendFile(path.join(__dirname, 'tables2.html'));
+});
+
+app.get('/prepdetail', (req, res) => {
+    res.sendFile(path.join(__dirname, 'prepdetail.html'));
 });
 
 // เส้นทางสำหรับแต่ละปุ่ม
