@@ -395,7 +395,8 @@ app.post('/api/get-preparation-details', async (req, res) => {
             TOTAL_CR_QTY AS ReceivedQty, 
             REMAINING_QTY AS PendingQty, 
             LATEST_PREPARE_QTY, 
-            STATUS
+            STATUS,
+            MIN(AR_NAME) OVER (PARTITION BY DI_REF) as AR_NAME
           FROM Stock_Summary
           WHERE DI_REF = @DI_REF
         `);
