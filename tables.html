@@ -53,9 +53,9 @@
 
             <!-- Nav Item - Dashboard -->
             <li class="nav-item">
-                <a class="nav-link" href="dashboard">
+                <a class="nav-link" href="home">
                     <i class="fas fa-fw fa-tachometer-alt"></i>
-                    <span>Dashboard</span></a>
+                    <span>หน้าหลัก</span></a>
             </li>
 
             <!-- Divider -->
@@ -64,6 +64,12 @@
 
 
             <!-- Nav Item - Tables -->
+            <li class="nav-item">
+                <a class="nav-link" href="dashboard">
+                    <i class="fas fa-fw fa-tachometer-alt"></i>
+                    <span>Dashboard</span></a>
+            </li>
+
             <li class="nav-item">
                 <a class="nav-link" href="tables">
                     <i class="fas fa-fw fa-table"></i>
@@ -149,7 +155,14 @@
 
                 <!-- Begin Page Content -->
                 <div class="container-fluid">
-                    <h1 class="h3 mb-2 text-gray-800">ใบตรวจจ่าย</h1>
+                    <!-- Breadcrumb Navigation -->
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="home">หน้าหลัก</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">ใบตรวจจ่าย</li>
+                        </ol>
+                    </nav>
+                    <!-- <h1 class="h3 mb-2 text-gray-800">ใบตรวจจ่าย</h1> -->
 
                     <div id="reader"></div>  <!-- Container for QR code scanner -->
                      <!-- Display scan result -->
@@ -176,8 +189,16 @@
                                     <h5 class="card-title">ค้นหา</h5>  
                                     </div>
                                     <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-xl-3 col-md-3">
+                                                <label>สแกนไฟล์</label>
+                                            </div>
+                                            <div class="col-xl-3 col-md-3" style="margin-left: 1rem !important;">
+                                                <label>เลขที่เอกสาร:</label>
+                                            </div>
+                                        </div>
                                             <div class="row">
-                                                <div class="col-auto mr-auto">
+                                                <div class="col-xl-3 col-md-3">
                                                     <div class="input-group mb-3">
                                                         <div class="custom-file">
                                                           <input type="file" class="custom-file-input" id="fileInput" accept=".png, .jpg, .jpeg" >
@@ -188,11 +209,10 @@
                                                 <!-- <p class="mb-2" for="fileInput">สแกน QRcode:</p>
                                                 <input type="file" id="fileInput" accept=".png, .jpg, .jpeg" > -->
                                             </div>
-                                            <div class="col-auto">
+                                            <div class="col-xl-3 col-md-3">
                                                 <form class="d-none d-sm-inline-block form-inline mr-auto ml-md-3 my-2 my-md-0 mw-100" id="searchForm1">
                                                     <div class="input-group">
-                                                    
-                                                        <input type="text" class="form-control bg-light border-0 small" id="reference" name="reference" placeholder="CV0000/0000" required aria-label="Search" aria-describedby="basic-addon2">
+                                                        <input type="text" class="form-control bg-light border-1 small" id="reference" name="reference" placeholder="CV0000/0000" required aria-label="Search" aria-describedby="basic-addon2">
                                                         <div class="input-group-append">
                                                             <button class="btn btn-primary" type="submit"><i class="fas fa-search fa-sm"></i></button>
                                                         </div>
@@ -205,7 +225,17 @@
                             </div>
                         </div> 
                     </div>
+                    
                     <div class="row">
+                        <h1 class="h3 mb-2 text-gray-800" style="margin-left: 1rem !important;" id="labelCheckStockList" hidden="true">รายการตรวจจ่าย</h1>
+                        <div class="col-xl-12 col-md-12">
+                            <div class="list-group" id="StockList">
+                                
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- <div class="row">
                     <div class="col-xl-12 col-md-12 mb-1">
                     <div class="card shadow mb-4">
                         <div class="card-header">
@@ -251,20 +281,20 @@
                                             <th style="display: none;" >CAT ID</th>
                                             <th style="display: none;" >CAT CODE</th>
                                             <th style="display: none;" >CAT NAME</th>
-                                            <!-- <th>ID</th> -->
+                                             <th>ID</th> 
                                         </tr>
                                     </thead>
                                     <tbody>                                        
                                     </tbody>
-                                </table>
-                                <div id="message"></div>
+                                </table> -->
+                                <!-- <div id="message"></div>
 
                                
                             </div>
-                            </div>
-                            <div class="card-footer text-right">
-                                <button type="button" class="btn btn-success" id="insertStockButton" hidden data-toggle="modal" data-target="#confirmInsertModal" >ยืนยัน</button>
-                                <div id="printContainer" style="display: none;">
+                            </div> -->
+                            <!-- <div class="card-footer text-right"> -->
+                                <!-- <button type="button" class="btn btn-success" id="insertStockButton" hidden data-toggle="modal" data-target="#confirmInsertModal" >ยืนยัน</button> -->
+                                <!-- <div id="printContainer" style="display: none;">
                                     <iframe id="printFrame" style="width: 100%; height: 800px; border: none;" hidden></iframe>
                                 </div>
                                 <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden >
@@ -274,7 +304,7 @@
                                       </svg>
                                     พิมพ์
                                 </button>
-                                
+                                 -->
     
                                 <!-- <button type="button" class="btn btn-primary" id="printButton"> -->
                                 <!-- <button type="button" class="btn btn-outline-danger" id="printButton" disabled="true" hidden >
@@ -284,9 +314,9 @@
                                       </svg>
                                     พิมพ์
                                 </button> -->
-                            </div>
+                            <!-- </div> -->
                             <!-- Insert confirm Modal-->
-                            <div class="modal fade" id="confirmInsertModal" tabindex="-1" role="dialog" aria-labelledby="confirmCheckModallabel" aria-hidden="true" >
+                            <!-- <div class="modal fade" id="confirmInsertModal" tabindex="-1" role="dialog" aria-labelledby="confirmCheckModallabel" aria-hidden="true" >
                                 <div class="modal-dialog" role="document">
                                     <div class="modal-content">
                                         <div class="modal-header">
@@ -302,11 +332,11 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </div> -->
 
+                    <!-- </div>
                     </div>
-                    </div>
-                    </div>
+                    </div>  -->
                 </div>
                 <!-- /.container-fluid -->
 

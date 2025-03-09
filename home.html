@@ -4,13 +4,21 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>Stock Status</title>
+  <title>หน้าหลัก</title>
 
-  <!-- Custom styles -->
+  <!-- Custom fonts for this template-->
   <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
   <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
+  <!-- Custom styles for this template-->
   <link href="css/sb-admin-2.min.css" rel="stylesheet">
-  <!-- ไม่จำเป็นต้องใช้ datatables.css ใน card view -->
+  <style>
+    .home-content {
+      padding: 20px;
+    }
+    .nav-btn {
+      margin-bottom: 20px;
+    }
+  </style>
 </head>
 <body id="page-top">
   <!-- Page Wrapper -->
@@ -18,7 +26,7 @@
     <!-- Sidebar -->
     <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
       <!-- Sidebar - Brand -->
-      <a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.html">
+      <a class="sidebar-brand d-flex align-items-center justify-content-center" href="home.html">
         <div class="sidebar-brand-icon rotate-n-15">
           <i class="fas fa-laugh-wink"></i>
         </div>
@@ -26,44 +34,46 @@
       </a>
       <!-- Divider -->
       <hr class="sidebar-divider my-0">
-      <!-- Dashboard Menu -->
+      <!-- Nav Item - Home -->
       <li class="nav-item active">
         <a class="nav-link" href="home">
-          <i class="fas fa-fw fa-tachometer-alt"></i>
+          <i class="fas fa-home"></i>
           <span>หน้าหลัก</span>
         </a>
       </li>
       <!-- Divider -->
       <hr class="sidebar-divider">
-      <!-- Tables Menu -->
-      <li class="nav-item active">
+      <!-- Nav Item - Dashboard -->
+      <li class="nav-item">
         <a class="nav-link" href="dashboard">
-          <i class="fas fa-fw fa-tachometer-alt"></i>
+          <i class="fas fa-tachometer-alt"></i>
           <span>Dashboard</span>
         </a>
       </li>
+      <!-- Nav Item - ใบตรวจจ่าย -->
       <li class="nav-item">
         <a class="nav-link" href="tables">
-          <i class="fas fa-fw fa-table"></i>
+          <i class="fas fa-table"></i>
           <span>ใบตรวจจ่าย</span>
         </a>
       </li>
+      <!-- Nav Item - ใบจัดเตรียม -->
       <li class="nav-item">
         <a class="nav-link" href="tables2">
-          <i class="fas fa-fw fa-table"></i>
+          <i class="fas fa-table"></i>
           <span>ใบจัดเตรียม</span>
         </a>
       </li>
-      <!-- Charts Menu -->
+      <!-- Nav Item - รายงาน -->
       <li class="nav-item" id="Report">
         <a class="nav-link" href="charts">
-          <i class="fas fa-fw fa-chart-area"></i>
+          <i class="fas fa-chart-area"></i>
           <span>รายงาน</span>
         </a>
       </li>
       <!-- Divider -->
       <hr class="sidebar-divider d-none d-md-block">
-      <!-- Sidebar Toggler -->
+      <!-- Sidebar Toggler (Sidebar) -->
       <div class="text-center d-none d-md-inline">
         <button class="rounded-circle border-0" id="sidebarToggle"></button>
       </div>
@@ -76,18 +86,23 @@
       <div id="content">
         <!-- Topbar -->
         <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+          <!-- Topbar Navbar -->
           <ul class="navbar-nav ml-auto">
             <div class="topbar-divider d-none d-sm-block"></div>
+            <!-- Nav Item - User Information -->
             <li class="nav-item dropdown no-arrow">
-              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" 
+              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                  data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="mr-2 d-none d-lg-inline text-gray-600 small"></span>
+                <span class="mr-2 d-none d-lg-inline text-gray-600 small">Username</span>
                 <img class="img-profile rounded-circle" src="img/undraw_profile.svg">
               </a>
-              <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
+              <!-- Dropdown - User Information -->
+              <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
+                   aria-labelledby="userDropdown">
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="#" id="logoutButton">
-                  <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
+                  <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+                  Logout
                 </a>
               </div>
             </li>
@@ -96,23 +111,35 @@
         <!-- End of Topbar -->
 
         <!-- Begin Page Content -->
-        <div class="container-fluid">
-          <!-- Breadcrumb Navigation -->
-          <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-              <li class="breadcrumb-item"><a href="home">หน้าหลัก</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
-            </ol>
-          </nav>
-          <!-- Page Heading -->
-          <h1 class="h3 mb-2 text-gray-800">รายงานติดตามสถานะ</h1>
-          <!-- Card Container แสดงข้อมูลแบบ card -->
-          <div id="cardContainer" class="row">
-            <!-- Card items จะถูกสร้างและแทรกที่นี่โดย JavaScript -->
+        <div class="container-fluid home-content">
+          <h1 class="h3 mb-4 text-gray-800">หน้าหลัก</h1>
+          <div class="row">
+            <div class="col-md-3 nav-btn">
+              <a href="/dashboard" class="btn btn-primary btn-block">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+              </a>
+            </div>
+            <div class="col-md-3 nav-btn">
+              <a href="/tables" class="btn btn-success btn-block">
+                <i class="fas fa-table"></i> ใบตรวจจ่าย
+              </a>
+            </div>
+            <div class="col-md-3 nav-btn">
+              <a href="/tables2" class="btn btn-warning btn-block">
+                <i class="fas fa-table"></i> ใบจัดเตรียม
+              </a>
+            </div>
+            <div class="col-md-3 nav-btn">
+              <a href="/charts" class="btn btn-info btn-block">
+                <i class="fas fa-chart-area"></i> รายงาน
+              </a>
+            </div>
           </div>
         </div>
         <!-- End of Page Content -->
       </div>
+      <!-- End of Main Content -->
+
       <!-- Footer -->
       <footer class="sticky-footer bg-white">
         <div class="container my-auto">
@@ -121,20 +148,39 @@
           </div>
         </div>
       </footer>
+      <!-- End of Footer -->
     </div>
     <!-- End of Content Wrapper -->
   </div>
   <!-- End of Page Wrapper -->
 
   <!-- Scroll to Top Button-->
-  <a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
-  
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
   <!-- Bootstrap core JavaScript-->
   <script src="vendor/jquery/jquery.min.js"></script>
   <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
   <script src="js/sb-admin-2.min.js"></script>
-  <!-- ไม่ต้องใช้ datatables JS สำหรับ card view -->
-  <script src="js/dashboard.js" defer></script>
+  <script>
+    // ตรวจสอบสิทธิ์ผู้ใช้และซ่อน nav item "รายงาน" หาก user_rights เท่ากับ "user"
+    (function() {
+      const rights = localStorage.getItem("user_rights");
+      if (rights === 'user') {
+        const reportEl = document.getElementById("Report");
+        if(reportEl) {
+          reportEl.hidden = true;
+        }
+      }
+    })();
+
+    // Logout
+    document.getElementById('logoutButton').addEventListener('click', function() {
+      localStorage.clear();
+      window.location.href = '/login';
+    });
+  </script>
 </body>
 </html>

@@ -57,11 +57,11 @@
       <hr class="sidebar-divider my-0">
 
       <!-- Nav Item - Dashboard -->
+      
       <li class="nav-item">
-        <a class="nav-link" href="dashboard">
-          <i class="fas fa-fw fa-tachometer-alt"></i>
-          <span>Dashboard</span>
-        </a>
+        <a class="nav-link" href="home">
+            <i class="fas fa-fw fa-tachometer-alt"></i>
+            <span>หน้าหลัก</span></a>
       </li>
 
       <!-- Divider -->
@@ -69,23 +69,27 @@
 
       <!-- Nav Items -->
       <li class="nav-item">
+        <a class="nav-link" href="dashboard">
+            <i class="fas fa-fw fa-tachometer-alt"></i>
+            <span>Dashboard</span></a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link" href="tables">
-          <i class="fas fa-fw fa-table"></i>
-          <span>ใบตรวจจ่าย</span>
-        </a>
-      </li>
-      <li class="nav-item">
+            <i class="fas fa-fw fa-table"></i>
+            <span>ใบตรวจจ่าย</span></a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link" href="tables2">
-          <i class="fas fa-fw fa-table"></i>
-          <span>ใบจัดเตรียม</span>
-        </a>
-      </li>
-      <li class="nav-item" id="Report">
+            <i class="fas fa-fw fa-table"></i>
+            <span>ใบจัดเตรียม</span></a>
+    </li>
+
+    <!-- Nav Item - Charts -->
+    <li class="nav-item" id="Report">
         <a class="nav-link" href="charts">
-          <i class="fas fa-fw fa-chart-area"></i>
-          <span>รายงาน</span>
-        </a>
-      </li>
+            <i class="fas fa-fw fa-chart-area"></i>
+            <span>รายงาน</span></a>
+    </li>
 
       <!-- Divider -->
       <hr class="sidebar-divider d-none d-md-block">
@@ -130,12 +134,40 @@
           </ul>
         </nav>
         <!-- End of Topbar -->
+<!-- เพิ่มปุ่มย้อนกลับไว้ด้านบนสุดของ card body -->
 
         <!-- Begin Page Content -->
         <div class="container-fluid">
-          <!-- Page Heading: แสดง DI_REF ที่เลือก -->
-          <h1 class="h3 mb-4 text-gray-800" id="pageHeading">รายละเอียด เลขที่เอกสาร:</h1>
-
+          <!-- Breadcrumb Navigation -->
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item">
+                <a href="#" onclick="window.history.back(); return false;">กลับ</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="tables2">ใบจัดเตรียม</a>
+              </li>
+              <li class="breadcrumb-item active" aria-current="page">
+                <span id="diRefBreadcrumb"></span>
+              </li>
+            </ol>
+          </nav>
+        <!-- Header Card: แสดงรายละเอียด -->
+          <div class="card mb-4">
+            <div class="card-body">
+              
+              <div class="row">
+                <div class="col-auto mr-auto">
+                  <p class="mb-0 text-gray-800" id="StockHeading"></p>
+                </div>
+                <div class="col-auto d-flex align-items-center justify-content-end">
+                  
+                  <!-- ปุ่มจัดเสร็จ -->
+                  <button id="saveHeaderBtn" class="btn btn-success" style="width:200px;">จัดเสร็จ</button>
+                </div>  
+              </div>
+            </div>
+          </div>
           <!-- DataTable Card -->
           <div class="card shadow mb-4">
             <div class="card-header">
@@ -214,193 +246,236 @@
   <script src="vendor/datatables/dataTables.bootstrap4.min.js"></script>
 
   <script>
+    // ดึงค่า di_ref จาก query string แล้วแสดงใน breadcrumb
+  document.addEventListener("DOMContentLoaded", function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const diRef = urlParams.get("di_ref") || "ไม่ระบุ";
+    document.getElementById("diRefBreadcrumb").textContent = diRef;
+  });
     // ฟังก์ชันโหลดตารางรายละเอียดและอัปเดตส่วนหัว (page heading)
-    function loadDetailTable(diRef) {
-  fetch("/api/get-preparation-details", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ DI_REF: diRef })
-  })
-    .then(response => response.json())
-    .then(result => {
-      console.log("✅ Detail API result:", result);
-      const pageHeading = document.getElementById('pageHeading');
-      if (result.success && result.data.length > 0) {
-        const first = result.data[0];
-        const formattedDate = first.DI_DATE ? new Date(first.DI_DATE).toLocaleDateString() : "";
-        // ดึงชื่อลูกค้าจาก ar_name หรือ AR_NAME
-        const customerName = first.ar_name || first.AR_NAME || "ไม่ระบุ";
-        pageHeading.innerHTML = `
-          <div>
-            <span>ชื่อลูกค้า: ${customerName}</span> |
-            <span>เลขที่เอกสาร: ${first.DI_REF}</span> |
-            <span>วันที่: ${formattedDate}</span>
-            <button id="saveHeaderBtn" class="btn btn-primary ml-3">บันทึก</button>
-          </div>
-        `;
-      } else {
-        pageHeading.textContent = "ไม่พบข้อมูลรายละเอียด";
-      }
-  
-      // กำหนดคอลัมน์สำหรับ DataTable ตามเงื่อนไข STATUS
-      let columns;
-      if (result.success && result.data.length > 0) {
-        if (result.data[0].STATUS != 1) {
-          // เมื่อ STATUS != 1 ให้แสดงคอลัมน์: ลำดับ, รหัสสินค้า, ชื่อสินค้า, จำนวนคงค้าง, จำนวนจัดเตรียม (แสดงเป็นข้อความ) และไม่แสดง Action
-          columns = [
-            { "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" },
-            { "data": "SKU_CODE", "title": "รหัสสินค้า" },
-            { "data": "SKU_NAME", "title": "ชื่อสินค้า" },
-            { "data": "PendingQty", "title": "จำนวนคงค้าง" },
-            {
-              "data": "LATEST_PREPARE_QTY",
-              "title": "จำนวนจัดเตรียม",
-              "render": (data) => `<span>${data || 0}</span>`
-            },
-            {
-              "data": null,
-              "title": "Action",
-              "render": () => ""
-            }
-          ];
-        } else {
-          // เมื่อ STATUS = 1 ให้แสดงคอลัมน์: ลำดับ, รหัสสินค้า, ชื่อสินค้า, จำนวนคงค้าง, จำนวนจัดเตรียม (เป็นช่อง input) และ Action เป็น checkbox
-          columns = [
-            { "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" },
-            { "data": "SKU_CODE", "title": "รหัสสินค้า" },
-            { "data": "SKU_NAME", "title": "ชื่อสินค้า" },
-            { "data": "PendingQty", "title": "จำนวนคงค้าง" },
-            {
-              "data": "LATEST_PREPARE_QTY",
-              "title": "จำนวนจัดเตรียม",
-              "render": (data, type, row) => `<input type='number' class='form-control detail-input' value='${data || 0}' 
-                        data-doc='${row.DI_REF}' data-prod='${row.SKU_CODE}' 
-                        max='${row.PendingQty}' min='0'>`
-            },
-            {
-              "data": null,
-              "title": "เตรียมทั้งหมด",
-              "render": (data, type, row) => {
-                return `<input type="checkbox" class="fill-checkbox" data-pending="${row.PendingQty}" data-doc="${row.DI_REF}" data-prod="${row.SKU_CODE}">`;
+    function loadDetailTable(diRef, category) {
+      // ส่ง category ไปใน payload เพื่อใช้ filter หากมี
+      fetch("/api/get-preparation-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ DI_REF: diRef, Category: category })
+      })
+        .then(response => response.json())
+        .then(result => {
+          console.log("✅ Detail API result:", result);
+          const pageHeading = document.getElementById('StockHeading');
+          if (result.success && result.data.length > 0) {
+            const first = result.data[0];
+            const formattedDate = first.DI_DATE ? new Date(first.DI_DATE).toLocaleDateString() : "";
+            // ดึงชื่อลูกค้าจาก ar_name หรือ AR_NAME
+            const customerName = first.ar_name || first.AR_NAME || "ไม่ระบุ";
+            pageHeading.innerHTML = `
+              
+                  <span><strong>ชื่อลูกค้า:</strong> ${customerName}</span><br>
+                  <span><strong>เลขที่เอกสาร:</strong> ${first.DI_REF}</span><br>
+                  <span><strong>วันที่เอกสาร:</strong> ${formattedDate}</span>
+                </div>
+              </div>
+            `;
+          } else {
+            pageHeading.textContent = "ไม่พบข้อมูลรายละเอียด";
+          }
+      
+          // กำหนดคอลัมน์สำหรับ DataTable ตามเงื่อนไข STATUS
+          let columns;
+          if (result.success && result.data.length > 0) {
+            // หาก STATUS เท่ากับ 2 หรือ 3 ให้แสดงช่อง input และ checkbox
+          //   if (result.data[0].STATUS == 2 || result.data[0].STATUS == 3) {
+              columns = [
+              { "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" },
+              { "data": "SKU_CODE", "title": "รหัสสินค้า" },
+              { "data": "SKU_NAME", "title": "ชื่อสินค้า" },
+              { "data": "PendingQty", "title": "จำนวนคงค้าง" },
+              {
+                "data": "LATEST_PREPARE_QTY",
+                "title": "จำนวนจัดเตรียม",
+                "render": (data, type, row) => {
+                  if ( (row.STATUS == 2 || row.STATUS == 3 || row.STATUS == 5 ) ) {
+                    return `<input type="number" class="form-control detail-input" value="${data || 0}" step="0.01" 
+                    oninput="if(parseFloat(this.value) > parseFloat(this.getAttribute('max'))){this.value = this.getAttribute('max');} else { this.value = fixDecimal(this.value); }" 
+                    data-doc="${row.DI_REF}" data-prod="${row.SKU_CODE}" max="${row.PendingQty}" min="0">`;
+                  }else{
+                    return "";
+                  }
+                }
+              },
+              {
+                "data": null,
+                "title": "เตรียมทั้งหมด",
+                "render": (data, type, row) => {
+                  if ( (row.STATUS == 2 || row.STATUS == 3 || row.STATUS == 5 ) ) {
+                    return `<input type="checkbox" class="fill-checkbox" data-pending="${row.PendingQty}" data-doc="${row.DI_REF}" data-prod="${row.SKU_CODE}">`;
+                  }else{
+                    return "";
+                  }
+                }
               }
-            }
-          ];
+            ];
+          // } else {
+            // สำหรับ STATUS อื่นๆ ให้แสดงเป็นข้อความ (ไม่ให้แก้ไข)
+          //   columns = [
+          //     { "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" },
+          //     { "data": "SKU_CODE", "title": "รหัสสินค้า" },
+          //     { "data": "SKU_NAME", "title": "ชื่อสินค้า" },
+          //     { "data": "PendingQty", "title": "จำนวนคงค้าง" },
+          //     {
+          //       "data": "LATEST_PREPARE_QTY",
+          //       "title": "จำนวนจัดเตรียม",
+          //       "render": (data) => `<span>${data || 0}</span>`
+          //     },
+          //     {
+          //       "data": null,
+          //       "title": "Action",
+          //       "render": () => ""
+          //     }
+          //   ];
+          // }
+        } else {
+          columns = [{ "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" }];
         }
-      } else {
-        columns = [{ "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" }];
-      }
-  
-      $('#detailTable').DataTable({
-        "data": result.data,
-        "columns": columns,
-        "destroy": true,
-        "pageLength": 10
-      });
-  
-      // เพิ่ม event listener สำหรับปุ่ม "บันทึก" ในส่วน header
-      const saveHeaderBtn = document.getElementById("saveHeaderBtn");
-      if (saveHeaderBtn) {
-        saveHeaderBtn.addEventListener("click", function() {
-          saveHeaderValues();
+    
+        $('#detailTable').DataTable({
+          "data": result.data,
+          "columns": columns,
+          searching: false,
+          paging: false,
+          info: false,
+          destroy: true
         });
+    
+        // เพิ่ม event listener สำหรับปุ่ม "บันทึก" ในส่วน header (ถ้ามี)
+        const saveHeaderBtn = document.getElementById("saveHeaderBtn");
+        if (saveHeaderBtn) {
+          saveHeaderBtn.addEventListener("click", function() {
+            saveHeaderValues();
+          });
+        }
+      })
+      .catch(error => {
+        console.error("Error loading detail data:", error);
+        document.getElementById("detailTable").innerHTML = "<p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>";
+      });
+  }
+  function fixDecimal(value) {
+      if (value.indexOf('.') >= 0) {
+        const parts = value.split('.');
+        // จำกัดส่วนทศนิยมไม่เกิน 2 หลัก
+        parts[1] = parts[1].substring(0, 2);
+        return parts.join('.');
       }
-    })
-    .catch(error => {
-      console.error("Error loading detail data:", error);
-      document.getElementById("detailTable").innerHTML = "<p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>";
-    });
-  }
-  
-  // ฟังก์ชันสำหรับ auto fill ช่อง input เมื่อ checkbox ถูกติ๊ก
-  function fillRemaining(btn) {
-    const pending = btn.getAttribute("data-pending");
-    const row = btn.closest("tr");
-    const input = row.querySelector(".detail-input");
-    if (input && btn.checked) {
-      input.value = pending;
+      return value;
     }
-  }
-  
-  // Event listener สำหรับ checkbox ในคอลัมน์ Action
-  document.addEventListener("change", function(event) {
-    if (event.target.classList.contains("fill-checkbox")) {
-      fillRemaining(event.target);
-    }
-  });
-  
-  // ฟังก์ชันสำหรับรวบรวมค่า input จาก DataTable และบันทึกข้อมูลแบบ Global
-  async function saveHeaderValues() {
-    const table = $('#detailTable').DataTable();
-    const updates = [];
-    table.rows().every(function () {
-      const row = this.node();
+    // ฟังก์ชันสำหรับ auto fill ช่อง input เมื่อ checkbox ถูกติ๊ก
+    function fillRemaining(btn) {
+      const pending = btn.getAttribute("data-pending");
+      const row = btn.closest("tr");
       const input = row.querySelector(".detail-input");
-      if (input) {
-        const newVal = input.value.trim();
-        const record = this.data();
-        updates.push({
-          DI_REF: record.DI_REF,
-          ProductCode: record.SKU_CODE,
-          PreparedQty: parseInt(newVal, 10)
-        });
+      if (input && btn.checked) {
+        input.value = pending;
+      }
+    }
+    
+    // Event listener สำหรับ checkbox ในคอลัมน์ Action
+    document.addEventListener("change", function(event) {
+      if (event.target.classList.contains("fill-checkbox")) {
+        fillRemaining(event.target);
       }
     });
-    console.log("Global update payload:", updates);
-    try {
-      const response = await fetch('/api/save-preparation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
+    
+    // ฟังก์ชันสำหรับรวบรวมค่า input จาก DataTable และบันทึกข้อมูลแบบ Global
+    async function saveHeaderValues() {
+  const table = $('#detailTable').DataTable();
+  const updates = [];
+  table.rows().every(function () {
+    const row = this.node();
+    const input = row.querySelector(".detail-input");
+    if (input) {
+      const newVal = input.value.trim();
+      const record = this.data();
+      updates.push({
+        DI_REF: record.DI_REF,
+        ProductCode: record.SKU_CODE,
+        PreparedQty: parseInt(newVal, 10),
+        Username: localStorage.getItem("username"),
+        branch: localStorage.getItem("branch_code")
       });
-      const result = await response.json();
-      if (result.success) {
-        alert("บันทึกข้อมูลแบบ Global สำเร็จ!");
-        table.ajax.reload();
-      } else {
-        alert(result.message);
-      }
-    } catch (error) {
-      console.error("Error saving global data:", error);
-      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูลแบบ Global");
-    }
-  }
-  
-  // เมื่อหน้า prepdetail โหลด, ดึงค่า di_ref จาก query string และโหลดตารางรายละเอียด
-  document.addEventListener("DOMContentLoaded", function () {
-    const params = new URLSearchParams(window.location.search);
-    const diRef = params.get('di_ref');
-    const pageHeading = document.getElementById('pageHeading');
-    if (diRef) {
-      loadDetailTable(diRef);
-    } else {
-      pageHeading.textContent = "ไม่พบ DI_REF";
     }
   });
+  console.log("Global update payload:", updates);
+  try {
+    const response = await fetch('/api/save-preparation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    const result = await response.json();
+    if (result.success) {
+      // เมื่อบันทึกข้อมูลสำเร็จ แสดง pop-up แจ้งว่า "จัดเรียบร้อยแล้ว"
+      alert("จัดเรียบร้อยแล้ว");
+      
+      // อ่านค่าตัวกรองที่ส่งมาจากหน้า tables2 (หรือเก็บไว้ก่อนหน้าใน query string)
+      const params = new URLSearchParams(window.location.search);
+      const category = params.get("category") || "all";
+      const status = params.get("SearchStatus") || "all";
+      
+      // Redirect ไปที่ tables2.html พร้อมแนบตัวกรองใน query string
+      window.location.href = "tables2?category=" + encodeURIComponent(category) + "&SearchStatus=" + encodeURIComponent(status);
+    } else {
+      alert(result.message);
+    }
+  } catch (error) {
+    console.error("Error saving global data:", error);
+    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูลแบบ Global");
+  }
+}
 
-  async function PrepareCheckRight() {
-    const username = localStorage.getItem("username");
-    const rights = localStorage.getItem("user_rights");
-
-    try {
+    
+    // เมื่อหน้า prepdetail โหลด, ดึงค่า di_ref และ category จาก query string และโหลดตารางรายละเอียด
+    document.addEventListener("DOMContentLoaded", function () {
+      const params = new URLSearchParams(window.location.search);
+      const diRef = params.get('di_ref');
+      const category = params.get('category') || "all";
+      const pageHeading = document.getElementById('StockHeading');
+      if (diRef) {
+        // แสดงหัวข้อที่รวม AR_NAME, DI_REF และ DI_DATE พร้อมกับแสดงประเภทสินค้าที่เลือก
+        // (ข้อมูล AR_NAME, DI_DATE จะได้จาก API หลังจาก loadDetailTable)
+        loadDetailTable(diRef, category);
+      } else {
+        pageHeading.textContent = "ไม่พบ DI_REF";
+      }
+    });
+    
+    async function PrepareCheckRight() {
+      const username = localStorage.getItem("username");
+      const rights = localStorage.getItem("user_rights");
+      try {
         if (username) {
-            document.querySelector("#userDropdown span").textContent = username;
-        }else{
-            alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
-            window.location.href = '/';
-            return;
+          document.querySelector("#userDropdown span").textContent = username;
+        } else {
+          alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+          window.location.href = '/';
+          return;
         }
         if (rights == 'user') {
-            document.getElementById("Report").hidden = true;
-            return;
+          document.getElementById("Report").hidden = true;
+          return;
         }
-
-    } catch (error) {
+      } catch (error) {
         console.error("Error:", error);
+      }
     }
-}
-PrepareCheckRight();
+    PrepareCheckRight();
+    document.getElementById('logoutButton').addEventListener('click', function() {
+    localStorage.clear();
+    window.location.href = '/';
+});
   </script>
-        
+          
 </body>
 
 </html>

@@ -1,10 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     const username = localStorage.getItem("username");
     const branch = localStorage.getItem("branch_code");
-    // const username = localStorage.getItem("username");
-    // const branch = localStorage.getItem("branch_code");
-    // const rights = localStorage.getItem("user_rights");
-    // CheckRight();
+
     if (username) {
         document.querySelector("#userDropdown span").textContent = username;
     }else{
@@ -13,13 +10,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
-    
-    // if (!rights) {
-    //     alert("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
-    //     document.getElementById("searchButton").disabled = false;
-    //     window.location.href = '/';
-    //     return;
-    // }
 
     
 
@@ -166,3 +156,8 @@ async function CheckRight() {
 }
 
 CheckRight();
+
+document.getElementById('logoutButton').addEventListener('click', function() {
+    localStorage.clear();
+    window.location.href = '/';
+});

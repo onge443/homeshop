@@ -30,3 +30,7 @@
   .status-pending { color: #dc3545; }
 .status-completed { color: #28a745; }
 .btn-confirm { background: #007bff; color: white; }
+
+.hide-column {
+  display: none;
+}

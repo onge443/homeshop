@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <title>รายละเอียด เลขที่เอกสาร - ตรวจจ่าย</title>
+  
+  <!-- Custom fonts for this template -->
+  <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
+  <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
+
+  <!-- Custom styles for this template -->
+  <link href="css/sb-admin-2.min.css" rel="stylesheet">
+  <link href="css/custom.css" rel="stylesheet">
+
+  <!-- Custom styles for DataTables -->
+  <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
+
+  <!-- Inline style adjustments -->
+  <style>
+    .container-fluid {
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+    .card {
+      margin-bottom: 15px;
+    }
+    .fill-checkbox {
+  width: 20px;  /* ปรับขนาดตามที่ต้องการ */
+  height: 20px;
+  /* เพิ่ม margin หรือปรับการแสดงผลเพิ่มเติมถ้าจำเป็น */
+  }
+
+  </style>
+</head>
+
+<body id="page-top">
+
+  <!-- Page Wrapper -->
+  <div id="wrapper">
+
+    <!-- Sidebar (ใช้ SB Admin 2 เดิม) -->
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+      <!-- Sidebar - Brand -->
+      <a class="sidebar-brand d-flex align-items-center justify-content-center" href="dashboard">
+        <div class="sidebar-brand-icon rotate-n-15">
+          <i class="fas fa-laugh-wink"></i>
+        </div>
+        <div class="sidebar-brand-text mx-3">SB Admin <sup>2</sup></div>
+      </a>
+
+      <!-- Divider -->
+      <hr class="sidebar-divider my-0">
+
+      <!-- Nav Item - Dashboard -->
+      <li class="nav-item">
+        <a class="nav-link" href="home">
+            <i class="fas fa-fw fa-tachometer-alt"></i>
+            <span>หน้าหลัก</span></a>
+      </li>
+
+      <!-- Divider -->
+      <hr class="sidebar-divider">
+
+      <!-- Nav Items -->
+      <li class="nav-item">
+        <a class="nav-link" href="dashboard">
+            <i class="fas fa-fw fa-tachometer-alt"></i>
+            <span>Dashboard</span></a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="tables">
+            <i class="fas fa-fw fa-table"></i>
+            <span>ใบตรวจจ่าย</span></a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="tables2">
+            <i class="fas fa-fw fa-table"></i>
+            <span>ใบจัดเตรียม</span></a>
+    </li>
+
+    <!-- Nav Item - Charts -->
+    <li class="nav-item" id="Report">
+        <a class="nav-link" href="charts">
+            <i class="fas fa-fw fa-chart-area"></i>
+            <span>รายงาน</span></a>
+    </li>
+
+      <!-- Divider -->
+      <hr class="sidebar-divider d-none d-md-block">
+
+      <!-- Sidebar Toggler -->
+      <div class="text-center d-none d-md-inline">
+        <button class="rounded-circle border-0" id="sidebarToggle"></button>
+      </div>
+    </ul>
+    <!-- End of Sidebar -->
+
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <!-- Main Content -->
+      <div id="content">
+
+        <!-- Topbar (ใช้แบบเดิม) -->
+        <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+          <form class="form-inline">
+            <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+              <i class="fa fa-bars"></i>
+            </button>
+          </form>
+          <ul class="navbar-nav ml-auto">
+            <div class="topbar-divider d-none d-sm-block"></div>
+            <li class="nav-item dropdown no-arrow">
+              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="mr-2 d-none d-lg-inline text-gray-600 small"></span>
+                <img class="img-profile rounded-circle" src="img/undraw_profile.svg">
+              </a>
+              <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
+                   aria-labelledby="userDropdown">
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
+                  <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+                  Logout
+                </a>
+              </div>
+            </li>
+          </ul>
+        </nav>
+        <!-- End of Topbar -->
+<!-- เพิ่มปุ่มย้อนกลับไว้ด้านบนสุดของ card body -->
+
+        <!-- Begin Page Content -->
+        <div class="container-fluid">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+              <li class="breadcrumb-item">
+                <a href="#" onclick="window.history.back(); return false;">กลับ</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="tables">ใบตรวจจ่าย</a>
+              </li>
+              <li class="breadcrumb-item active" aria-current="page">
+                <span id="diRefBreadcrumb"></span>
+              </li>
+            </ol>
+          </nav>
+        <!-- Header Card: แสดงรายละเอียด -->
+          <div class="card mb-4">
+            <div class="card-body">
+              
+              <div class="row">
+                <div class="col-auto mr-auto">
+                  <p class="mb-0 text-gray-800" id="StockHeading"></p>
+                </div>
+                <div class="col-auto d-flex align-items-center justify-content-end">
+                  
+                  <!-- ปุ่มจัดเสร็จ -->
+                  <button id="saveHeaderBtn" class="btn btn-success" style="width:200px;">บันทึกการตรวจจ่าย</button>
+                </div>  
+              </div>
+            </div>
+          </div>
+          <!-- DataTable Card -->
+          <div class="card shadow mb-4">
+            <div class="card-header">
+              <h6 class="m-0 font-weight-bold text-primary">ตารางรายละเอียด</h6>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-bordered" id="detailTable" width="100%" cellspacing="0">
+                  
+                  <tbody>
+                    <!-- Data will be populated by DataTables -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card-footer text-right">
+              <div id="printContainer" style="display: none;">
+                  <iframe id="printFrame" style="width: 100%; height: 800px; border: none;" hidden></iframe>
+              </div>
+              <button type="button" class="btn btn-outline-danger" id="printButton" >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-printer" viewBox="0 0 16 16">
+                      <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1"/>
+                      <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1"/>
+                    </svg>
+                  พิมพ์
+              </button>
+          </div>
+          </div>
+        </div>
+        <!-- End of Page Content -->
+
+      </div>
+      <!-- End of Main Content -->
+
+      <!-- Footer -->
+      <footer class="sticky-footer bg-white">
+        <div class="container my-auto">
+          <div class="copyright text-center my-auto">
+            <span>Copyright © Your Website 2020</span>
+          </div>
+        </div>
+      </footer>
+      <!-- End of Footer -->
+
+    </div>
+    <!-- End of Content Wrapper -->
+
+  </div>
+  <!-- End of Page Wrapper -->
+
+  <!-- Scroll to Top Button-->
+  <a class="scroll-to-top rounded" href="#page-top">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+  <!-- Logout Modal-->
+  <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+       aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLabel">Ready to Leave?</h5>
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <div class="modal-body">Select "Logout" below if you are ready to end your current session.</div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" id="logoutButton">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap core JavaScript-->
+  <script src="vendor/jquery/jquery.min.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Core plugin JavaScript-->
+  <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
+
+  <!-- Custom scripts for all pages-->
+  <script src="js/sb-admin-2.min.js"></script>
+
+  <!-- Page level plugins -->
+  <script src="vendor/datatables/jquery.dataTables.min.js"></script>
+  <script src="vendor/datatables/dataTables.bootstrap4.min.js"></script>
+
+  <script>
+
+    // ดึงค่า di_ref จาก query string แล้วแสดงใน breadcrumb
+  document.addEventListener("DOMContentLoaded", function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const diRef = urlParams.get("di_ref") || "ไม่ระบุ";
+    document.getElementById("diRefBreadcrumb").textContent = diRef;
+  });
+    // ฟังก์ชันโหลดตารางรายละเอียดและอัปเดตส่วนหัว (page heading)
+    function loadDetailTable(diRef) {
+      // ส่ง category ไปใน payload เพื่อใช้ filter หากมี
+      fetch("/api/get-stock-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ DI_REF: diRef })
+      })
+        .then(response => response.json())
+        .then(result => {
+          console.log("✅ Detail API result:", result);
+          const pageHeading = document.getElementById('StockHeading');
+          if (result.success && result.data.length > 0) {
+            const first = result.data[0];
+            const formattedDate = first.DI_DATE ? new Date(first.DI_DATE).toLocaleDateString() : "";
+            // ดึงชื่อลูกค้าจาก ar_name หรือ AR_NAME
+            const customerName = first.ar_name || first.AR_NAME || "ไม่ระบุ";
+            pageHeading.innerHTML = `
+              
+                  <span><strong>ชื่อลูกค้า:</strong><span id='CustomerName'>${customerName}</span></span><br>
+                  <span><strong>เลขที่เอกสาร:</strong><span id='DIREF'>${first.DI_REF}</span></span><br>
+                  <span><strong>วันที่เอกสาร:</strong><span id='DIDate'>${formattedDate}</span></span>
+                </div>
+              </div>
+            `;
+          } else {
+            pageHeading.textContent = "ไม่พบข้อมูลรายละเอียด";
+          }
+      
+          // กำหนดคอลัมน์สำหรับ DataTable ตามเงื่อนไข STATUS
+          let columns;
+          if (result.success && result.data.length > 0) {
+            // หาก STATUS เท่ากับ 2 หรือ 3 ให้แสดงช่อง input และ checkbox
+           
+              columns = [
+              { "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" },
+              { "data": "SKU_CODE", "title": "รหัสสินค้า" },
+              { "data": "SKU_NAME", "title": "ชื่อสินค้า" },
+              { "data": "TOTAL_SKU_QTY", "title": "ขาย" },
+              { "data": "TOTAL_CR_QTY", "title": "จ่ายแล้ว" },
+              { "data": "REMAINING_QTY", "title": "ค้างจ่าย" },
+              {
+                "data": null,
+                "title": "ตรวจจ่าย",
+                "render": (data, type, row,meta) => {
+                  // เช็คสถานะของ row
+                  if ( (row.STATUS == 1 || row.STATUS == 3 || row.STATUS == 4 || row.STATUS == 5 ) ) {
+                    return `<input type='number' class='form-control detail-input' step="0.01"
+                              oninput="if(parseFloat(this.value) > parseFloat(this.getAttribute('max'))){this.value = this.getAttribute('max');} else { this.value = fixDecimal(this.value); }" 
+                              data-doc='${row.DI_REF}' data-prod='${row.SKU_CODE}' 
+                              max='${row.REMAINING_QTY}' min='0'>`;
+                  } else {
+                    // สำหรับ row ที่สถานะไม่ใช่ 1 หรือ 5 ให้แสดงเป็นข้อความ
+                    return "";
+                  }
+                }
+              },
+              {
+                "data": null,
+                "title": "จ่ายทั้งหมด",
+                "render": (data, type, row) => {
+                  if ( (row.STATUS == 1 || row.STATUS == 3 || row.STATUS == 4 || row.STATUS == 5 ) ) {
+                    return `<input type="checkbox" class="fill-checkbox" data-pending="${row.REMAINING_QTY}" data-doc="${row.DI_REF}" data-prod="${row.SKU_CODE}">`;
+                  } else {
+                    return ""; // ไม่แสดงอะไรสำหรับ row ที่ไม่ตรงเงื่อนไข
+                  }
+                  
+                }
+              },
+              { "data": "ROUND", "title": "Round", "className": "hide-column"},
+              { "data": "ID", "title": "ID", "className": "hide-column"},
+              { "data": "STATUS", "title": "STATUS", "className": "hide-column"}
+            ];
+          
+          } else {
+            columns = [{ "data": null, "render": (data, type, row, meta) => meta.row + 1, "title": "ลำดับ" }];
+          }
+    
+        $('#detailTable').DataTable({
+          "data": result.data,
+          "columns": columns,
+          searching: false,
+          paging: false,
+          info: false,
+          destroy: true
+        });
+    
+        // เพิ่ม event listener สำหรับปุ่ม "บันทึก" ในส่วน header (ถ้ามี)
+        const saveHeaderBtn = document.getElementById("saveHeaderBtn");
+        if (saveHeaderBtn) {
+          saveHeaderBtn.addEventListener("click", function() {
+            saveHeaderValues();
+          });
+        }
+      })
+      .catch(error => {
+        console.error("Error loading detail data:", error);
+        document.getElementById("detailTable").innerHTML = "<p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>";
+      });
+  }
+    function fixDecimal(value) {
+      if (value.indexOf('.') >= 0) {
+        const parts = value.split('.');
+        // จำกัดส่วนทศนิยมไม่เกิน 2 หลัก
+        parts[1] = parts[1].substring(0, 2);
+        return parts.join('.');
+      }
+      return value;
+    }
+    // ฟังก์ชันสำหรับ auto fill ช่อง input เมื่อ checkbox ถูกติ๊ก
+    function fillRemaining(btn) {
+      const pending = btn.getAttribute("data-pending");
+      const row = btn.closest("tr");
+      const input = row.querySelector(".detail-input");
+      if (input && btn.checked) {
+        input.value = pending;
+      }
+    }
+    
+    // Event listener สำหรับ checkbox ในคอลัมน์ Action
+    document.addEventListener("change", function(event) {
+      if (event.target.classList.contains("fill-checkbox")) {
+        fillRemaining(event.target);
+      }
+    });
+    
+    // ฟังก์ชันสำหรับรวบรวมค่า input จาก DataTable และบันทึกข้อมูลแบบ Global
+    async function saveHeaderValues() {
+      const table = $('#detailTable').DataTable();
+      const updates = [];
+      table.rows().every(function () {
+        const row = this.node();
+        const input = row.querySelector(".detail-input");
+        
+        if (input) {
+          
+          const record = this.data();
+          console.log("record"+JSON.stringify(record));
+          let  newVal = input.value.trim();
+          let  status = parseInt(record.STATUS,10);
+          if(newVal == '' || newVal == null){
+            newVal=0;
+          }
+          const remain = parseFloat(record.REMAINING_QTY) - parseFloat(newVal);
+          const TotalCR = parseFloat(record.TOTAL_CR_QTY) + parseFloat(newVal);
+          if(remain == 0){
+            status = 6;
+          }else if(newVal != 0 && remain != 0){
+            status = 5;
+          }
+          updates.push({
+            ID: record.ID,
+            DI_REF: record.DI_REF,
+            DI_DATE: record.DI_DATE,
+            SKU_CODE: record.SKU_CODE,
+            SKU_NAME: record.SKU_NAME,
+            ROUND: record.ROUND+1,
+            SKU_QTY: parseFloat(record.TOTAL_SKU_QTY),
+            CheckQTY: parseFloat(newVal),
+            TotalCR: parseFloat(record.TOTAL_CR_QTY) + parseFloat(newVal),
+            RemainQTY: remain,
+            Status: status,
+            CreateBy: localStorage.getItem("username"),
+            Branch: localStorage.getItem("branch_code")
+          });
+        }
+      });
+      // console.log("Global update payload:", updates);
+      try {
+        const response = await fetch('/api/insert-stock-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: updates })
+        });
+        if (!response.ok) {
+        const text = await response.text();
+        console.error("Error response:", text);
+        throw new Error("Server responded with an error");
+      }
+        const result = await response.json();
+        if (result.success) {
+          const params = new URLSearchParams(window.location.search);
+          const diRef = params.get('di_ref');
+          if (diRef) {
+            loadDetailTable(diRef);
+          }
+          showAlert("บันทึกข้อมูลเรียบร้อย");
+          document.getElementById("saveHeaderBtn").disable =true;
+         
+        } else {
+          alert(result.message);
+        }
+      } catch (error) {
+        console.error("Error saving global data:", error);
+        alert("เกิดข้อผิดพลาดในการบันทึกข้อมูลแบบ Global");
+      }
+    }
+    
+    // เมื่อหน้า prepdetail โหลด, ดึงค่า di_ref และ category จาก query string และโหลดตารางรายละเอียด
+    document.addEventListener("DOMContentLoaded", function () {
+      const params = new URLSearchParams(window.location.search);
+      const diRef = params.get('di_ref');
+      const pageHeading = document.getElementById('StockHeading');
+      if (diRef) {
+        // แสดงหัวข้อที่รวม AR_NAME, DI_REF และ DI_DATE พร้อมกับแสดงประเภทสินค้าที่เลือก
+        // (ข้อมูล AR_NAME, DI_DATE จะได้จาก API หลังจาก loadDetailTable)
+        loadDetailTable(diRef);
+      } else {
+        pageHeading.textContent = "ไม่พบเลขที่เอกสาร";
+      }
+    });
+
+    async function showAlert(text) {
+        // สร้าง div สำหรับ Alert
+        const alertDiv = document.createElement('div');
+        alertDiv.classList.add('alert', 'alert-success', 'd-flex', 'align-items-center');
+        alertDiv.setAttribute('role', 'alert');
+        // กำหนดสไตล์ให้แสดงที่ด้านบนสุด
+        alertDiv.style.position = "fixed";
+        alertDiv.style.top = "10PX"; // เว้นจากขอบบนเล็กน้อย
+        alertDiv.style.left = "50%";
+        alertDiv.style.width = "40%";
+        alertDiv.style.minWidth = "300px";
+        alertDiv.style.textAlign = "center";
+        alertDiv.style.transform = "translateX(-50%)"; // จัดให้อยู่ตรงกลาง
+        alertDiv.style.zIndex = "9999"; // ให้ Alert อยู่ด้านบนสุด
+        alertDiv.style.padding = "15px";
+        alertDiv.style.fontSize = "16px";
+        alertDiv.style.boxShadow = "0px 4px 10px rgba(0, 0, 0, 0.1)";
+
+        // สร้าง svg ไอคอน
+        const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svgIcon.classList.add('bi', 'flex-shrink-0', 'me-2');
+        svgIcon.setAttribute('width', '24');
+        svgIcon.setAttribute('height', '24');
+        svgIcon.setAttribute('role', 'img');
+        svgIcon.setAttribute('aria-label', 'Success:');
+        const useElement = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        useElement.setAttribute('xlink:href', '#check-circle-fill');
+        svgIcon.appendChild(useElement);
+
+        // สร้างข้อความใน Alert
+        const alertText = document.createElement('div');
+        alertText.textContent = text;
+
+        // เพิ่มไอคอนและข้อความเข้าไปใน alertDiv
+        alertDiv.appendChild(svgIcon);
+        alertDiv.appendChild(alertText);
+
+        // เพิ่ม alert ลงใน body หรือส่วนที่ต้องการ
+        document.body.appendChild(alertDiv);
+
+        // ปิด alert หลังจาก 5 วินาที
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+    
+    document.getElementById("printButton").addEventListener("click", function () {
+        console.log("✅ Print button clicked!"); // ✅ Debugging
+    
+        const printContainer = document.getElementById("printContainer");
+        const printFrame = document.getElementById("printFrame");
+    
+        // ✅ ดึงค่าจากฟอร์ม
+        const DI_REF = document.getElementById("DIREF").textContent;
+        const Customer = document.getElementById("CustomerName").textContent;
+        const DI_Date = document.getElementById("DIDate").textContent;
+        const CreateBy = localStorage.getItem("username") || "unknown_user";
+        let Ref = `
+            <div class="col">เลขที่เอกสาร: ${DI_REF}</div>
+            <div class="col">ชื่อลูกค้า: ${Customer}</div>
+            <div class="col">วันที่ออกบิล: ${DI_Date}</div>`;
+    
+        // ✅ ดึงข้อมูลจากตาราง
+        const table = document.getElementById("detailTable");
+        const rows = table.querySelectorAll("tbody tr");
+        let updatedTableHtml = `
+            <table border="1" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th>ลำดับ</th>
+                        <th>รหัสสินค้า</th>
+                        <th>ชื่อสินค้า</th>
+                        <th>จำนวนขาย</th>
+                        <th>จำนวนคงเหลือ</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+    
+        rows.forEach((row, index) => {
+            const cells = row.querySelectorAll("td");
+            // const inputCQ = row.querySelector(`#CheckQTY${index + 1}`);  
+            // const checkQTY = inputCQ ? inputCQ.value : "0";
+    
+            // const inputTotal = row.querySelector(`#Subtotal${index + 1}`);  
+            // const TotalQTY = inputTotal ? inputTotal.value : "0";
+    
+            updatedTableHtml += `
+                <tr>
+                    <td>${cells[0].textContent}</td>
+                    <td>${cells[1].textContent}</td>
+                    <td>${cells[2].textContent}</td>
+                    <td>${cells[3].textContent}</td>
+                    <td>${cells[5].textContent}</td>
+                </tr>`;
+        });
+    
+        updatedTableHtml += `</tbody></table>`;
+    
+        // ✅ สร้าง QR Code
+        const qrDiv = document.createElement("div");
+        qrDiv.style.textAlign = "center";
+        new QRCode(qrDiv, {
+            text: DI_REF,
+            width: 100,
+            height: 100,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    
+        setTimeout(() => {
+            const qrCanvas = qrDiv.querySelector("canvas");
+            if (!qrCanvas) {
+                console.error("❌ QR Code not generated.");
+                return;
+            }
+            const qrImageBase64 = qrCanvas.toDataURL("image/png"); 
+            const qrCodeHtml = `<img src="${qrImageBase64}" alt="QR Code">`;
+    
+            // ✅ ใส่ข้อมูลลงใน `iframe`
+            const iframeDoc = printFrame.contentWindow.document;
+            iframeDoc.open();
+            iframeDoc.write(`
+                <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+                        <style>
+                            body { font-family: Arial, sans-serif; padding: 20px; background-color: #f8f9fa; }
+                            .report-container { display: flex; justify-content: space-between; align-items: flex-start; }
+                            .report-content { flex: 1; }
+                            .qr-container { flex: 0 0 150px; text-align: center; padding-left: 20px; }
+                            .table-container { width: 100%;  }
+                            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                            table, th, td { border: 1px solid black; }
+                            th, td { padding: 10px; text-align: left; }
+                            .header { text-align: center; margin-bottom: 20px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container report-container">
+                            <div class="report-content">
+                                <div class="header">
+                                    <h2>ใบจำหน่ายสินค้า</h2>
+                                </div>
+                            </div>
+                            <div class="qr-container">${qrCodeHtml}</div>
+                        </div>
+                        <div class="container">${Ref}</div>
+                        <div class="container">
+                            <div class="table-container">${updatedTableHtml}</div> 
+                        </div>
+                        <div class="container">บันทึกโดย: ${CreateBy}</div>
+                    </body>
+                </html>`);
+            iframeDoc.close();
+    
+            // ✅ แสดง `iframe`
+            printContainer.style.display = "block";
+    
+            // ✅ รอ 1.5 วินาทีแล้วพิมพ์
+            setTimeout(() => {
+                printFrame.contentWindow.print();
+            }, 1500);
+        }, 1000); // ✅ รอให้ QR Code โหลดเสร็จก่อนพิมพ์
+    });
+
+    
+    async function PrepareCheckRight() {
+      const username = localStorage.getItem("username");
+      const rights = localStorage.getItem("user_rights");
+      try {
+        if (username) {
+          document.querySelector("#userDropdown span").textContent = username;
+        } else {
+          alert("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+          window.location.href = '/';
+          return;
+        }
+        if (rights == 'user') {
+          document.getElementById("Report").hidden = true;
+          return;
+        }
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    }
+    PrepareCheckRight();
+
+    document.getElementById('logoutButton').addEventListener('click', function() {
+    localStorage.clear();
+    window.location.href = '/';
+});
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script> 
+</body>
+
+</html>
