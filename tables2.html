@@ -285,18 +285,19 @@
     <script src="js/demo/datatables-demo.js"></script>
     <!-- Script for Dropdown/Buttons functionality -->
     <script src="js/dropdown.js" defer></script>
-    <div class="modal fade" id="loadingModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-          <div class="modal-content" style="background: transparent; border: none;">
-            <div class="modal-body text-center">
-              <div class="spinner-border text-primary" role="status">
-                <span class="sr-only">Loading...</span>
-              </div>
-              <p>Loading...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    
+    <script>
+        window.open = function() {
+        const CheckUser = localStorage.getItem('username');
+        if (CheckUser === null || CheckUser.trim() === '') {
+            window.location.href ='login';
+            }
+            else{
+                document.querySelector("#userDropdown span").textContent = CheckUser; 
+            }
+        };
+    </script>
+      
+    
 </body>
 </html>

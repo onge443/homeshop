@@ -1,5 +1,5 @@
 async function searchPreparation() {
-    $('#loadingModal').modal('show');
+    
     const branch = localStorage.getItem("branch_code");
     try {
         const responselist = await fetch('/api/search-preparation', {
@@ -47,11 +47,7 @@ async function searchPreparation() {
         
     
     } 
-        finally {
-        // ซ่อน loading modal หลังจาก delay เล็กน้อย
-        setTimeout(() => {
-            $('#loadingModal').modal('hide');
-        }, 100); }
+        
   
 }
 

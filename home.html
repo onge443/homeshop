@@ -92,22 +92,23 @@
             <!-- Nav Item - User Information -->
             <li class="nav-item dropdown no-arrow">
               <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
-                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="mr-2 d-none d-lg-inline text-gray-600 small">Username</span>
-                <img class="img-profile rounded-circle" src="img/undraw_profile.svg">
+                  data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  <span class="mr-2 d-none d-lg-inline text-gray-600 small"></span>
+                  <img class="img-profile rounded-circle"
+                      src="img/undraw_profile.svg">
               </a>
               <!-- Dropdown - User Information -->
               <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
-                   aria-labelledby="userDropdown">
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="#" id="logoutButton">
-                  <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
-                  Logout
-                </a>
+                  aria-labelledby="userDropdown">
+                  <div class="dropdown-divider"></div>
+                  <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
+                      <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+                      Logout
+                  </a>
               </div>
-            </li>
-          </ul>
-        </nav>
+          </li>
+      </ul>
+  </nav>
         <!-- End of Topbar -->
 
         <!-- Begin Page Content -->
@@ -130,7 +131,7 @@
               </a>
             </div>
             <div class="col-md-3 nav-btn">
-              <a href="/charts" class="btn btn-info btn-block">
+              <a id="reportsButton" href="/charts" class="btn btn-info btn-block">
                 <i class="fas fa-chart-area"></i> รายงาน
               </a>
             </div>
@@ -158,29 +159,73 @@
   <a class="scroll-to-top rounded" href="#page-top">
     <i class="fas fa-angle-up"></i>
   </a>
-
+<!-- Logout Modal-->
+<div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+aria-hidden="true">
+<div class="modal-dialog" role="document">
+<div class="modal-content">
+ <div class="modal-header">
+   <h5 class="modal-title" id="exampleModalLabel">Ready to Leave?</h5>
+   <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+     <span aria-hidden="true">×</span>
+   </button>
+ </div>
+ <div class="modal-body">Select "Logout" below if you are ready to end your current session.</div>
+ <div class="modal-footer">
+   <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+   <button class="btn btn-primary" id="logoutButton">Logout</button>
+ </div>
+</div>
+</div>
+</div>
   <!-- Bootstrap core JavaScript-->
   <script src="vendor/jquery/jquery.min.js"></script>
   <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
   <script src="js/sb-admin-2.min.js"></script>
   <script>
-    // ตรวจสอบสิทธิ์ผู้ใช้และซ่อน nav item "รายงาน" หาก user_rights เท่ากับ "user"
-    (function() {
-      const rights = localStorage.getItem("user_rights");
-      if (rights === 'user') {
-        const reportEl = document.getElementById("Report");
-        if(reportEl) {
-          reportEl.hidden = true;
-        }
-      }
-    })();
+    document.addEventListener("DOMContentLoaded", function() {
+  const rights = localStorage.getItem("user_rights");
 
-    // Logout
+  // ซ่อน nav item "รายงาน" ใน Sidebar ถ้าไม่ใช่ admin
+  if (rights !== "admin") {
+    const reportNavItem = document.getElementById("Report");
+    if (reportNavItem) {
+      reportNavItem.hidden = true;
+    }
+  }
+
+  // ปิดการทำงานของปุ่ม "รายงาน" ที่แสดงบนหน้าเว็บถ้าไม่ใช่ admin
+  if (rights !== "admin") {
+    const reportsButton = document.getElementById("reportsButton");
+    if (reportsButton) {
+      // ลบ attribute href เพื่อไม่ให้กดได้
+      reportsButton.removeAttribute("href");
+      // ปรับสไตล์ให้ดูเหมือนถูก disabled
+      reportsButton.style.pointerEvents = "none";
+      reportsButton.style.opacity = "0.5";
+      // เพิ่ม event listener เพื่อแจ้งเตือนเมื่อกดปุ่ม
+      reportsButton.addEventListener("click", function(e) {
+        e.preventDefault();
+        alert("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
+      });
+    }
+  }
+});
+document.addEventListener("DOMContentLoaded", function() {
+    const username = localStorage.getItem("username");
+    if (username && username.trim() !== "") {
+      document.querySelector("#userDropdown span").textContent = username;
+    }
+  });
+
+    // Event listener for the logout button
     document.getElementById('logoutButton').addEventListener('click', function() {
-      localStorage.clear();
-      window.location.href = '/login';
-    });
+            // Remove 'username' from localStorage
+            localStorage.clear();
+            // Redirect user after logout (optional)
+            window.location.href = '/'; 
+        });
   </script>
 </body>
 </html>
