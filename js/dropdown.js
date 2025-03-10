@@ -192,7 +192,7 @@ async function loadStatusButtons() {
     }
 
 
-document.addEventListener("DOMContentLoaded", async function() {
+    document.addEventListener("DOMContentLoaded", async function() {
     
     
     // const cat ='all';

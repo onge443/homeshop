@@ -55,7 +55,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     // วนลูป group ที่ได้และสร้าง card สำหรับแต่ละ group
     Object.keys(groupedData).forEach(diRef => {
       const group = groupedData[diRef];
-      // ใช้ record แรกใน group เป็นข้อมูลพื้นฐาน
       const first = group[0];
   
       // แปลงวันที่เอกสาร
@@ -67,15 +66,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         diDate = '-';
       }
   
-      // กำหนดข้อความสถานะ และเลือกสีจาก mapping
+      // กำหนดข้อความสถานะและเลือกสีจาก mapping
       const statusText = first.STATUS_NAME || first.status_name || '-';
       const statusClass = statusColorMapping[statusText] || "btn-secondary";
   
-      // สร้าง HTML ของ card โดยแสดง "ลูกค้า" และ "สถานะ" ในแถวเดียวกัน
+      // ตรวจสอบว่า หากสถานะเป็น "จัดเสร็จ" แล้ว UPDATE_DATE ผ่านไปมากกว่า 5 นาที ให้ไม่ render card นี้
+      if (statusText === "จัดเสร็จ") {
+        const updateDateValue = first.UPDATE_DATE || first.update_date;
+        if (updateDateValue) {
+          const diff = new Date() - new Date(updateDateValue);
+          if (diff >= 300000) { // 300,000 ms = 5 นาที
+            return; // ไม่ render cardนี้
+          }
+        }
+      }
+  
+      // สร้าง HTML ของ card โดยแสดงเฉพาะข้อมูลพื้นฐาน
       const cardHTML = `
         <div class="card border-left-primary shadow h-100 py-2 mb-3" style="width: 100%;">
           <div class="card-body">
-            <!-- แถวเดียวสำหรับลูกค้า (ด้านซ้าย) และสถานะ (ด้านขวา) -->
             <div class="mb-2 d-flex justify-content-between align-items-center">
               <div>
                 <div class="text-xs font-weight-bold text-primary text-uppercase">ลูกค้า</div>
@@ -88,7 +97,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 </div>
               </div>
             </div>
-            <!-- ข้อมูลอื่น ๆ -->
             <div class="mb-2">
               <div class="text-xs font-weight-bold text-primary text-uppercase">เลขที่เอกสาร</div>
               <div class="h5 mb-0 font-weight-bold text-gray-800">${diRef}</div>
@@ -97,26 +105,13 @@ document.addEventListener("DOMContentLoaded", async () => {
               <div class="text-xs font-weight-bold text-primary text-uppercase">วันที่เอกสาร</div>
               <div class="h5 mb-0 font-weight-bold text-gray-800">${diDate}</div>
             </div>
-            <!-- หากมีหลายรายการใน group (เช่น รายการสินค้า) -->
-            ${group.length > 1 ? `<hr>
-            <div class="mt-2">
-              <div class="text-xs font-weight-bold text-secondary text-uppercase">รายการสินค้า</div>
-              ${group.map(item => `<div>${item.SKU_NAME || '-'}</div>`).join('')}
-            </div>` : ''}
           </div>
         </div>
       `;
       container.insertAdjacentHTML("beforeend", cardHTML);
     });
   }
-  
-  
-  
-  
-  
-  
-  
-  
+    
   // อัปเดตข้อมูลทุก 1 นาที (optional)
   function fetchAndUpdateStock() {
     fetch("/api/get-stock-status2")
