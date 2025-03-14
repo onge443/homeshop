@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
 
             // ส่งข้อมูลไปยัง API `/search1` เพื่อ Query ข้อมูลและอัปเดตตาราง
-            const searchResponse = await fetch('/search1', {
+            const searchResponse = await fetch('/searchCheckQTY', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reference: decodedText })
@@ -84,18 +84,31 @@ document.addEventListener("DOMContentLoaded", function () {
             
                 const decodedText = await html5QrCode.scanFile(file, true);
                 // alert("Decode."+`${decodedText}`);
-                const response = await fetch('/search1', {
+                const response = await fetch('/searchCheckQTY', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ reference: decodedText })
                     });
-
+                    
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
+                    // เพิ่มบรรทัดนี้เพื่อรับผลลัพธ์ JSON
+                    const result1 = await response.json();
+                    const StockList = document.getElementById("StockList");
+                    StockList.innerHTML = ""; // เคลียร์ข้อมูลเก่า
 
-                    const result = await response.json();
-                    updateTable(result);
+                    result1.data.forEach(stocklist => {
+                    StockList.innerHTML +=
+                        `<a href="#" class="list-group-item list-group-item-action" aria-current="true">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">${stocklist.AR_NAME}</h5>
+                            <button class="btn btn-success btn-detail" data-doc="${stocklist.DI_REF}">ตรวจจ่าย</button>
+                        </div>
+                        <p class="mb-1">${stocklist.DI_REF}</p>
+                        <p class="mb-1">วันที่เอกสาร: ${stocklist.DI_DATE}</p>
+                        </a>`;
+                    });
                     
             } catch (err) {
                 console.error("Error scanning file:", err);

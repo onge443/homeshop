@@ -1,14 +1,19 @@
+// กำหนดค่าเริ่มต้นสำหรับ Pagination
+let currentPage = 1;
+let pageSize = 10;
 async function searchPreparation() {
     
     const branch = localStorage.getItem("branch_code");
+    const start = (currentPage - 1) * pageSize;
+    console.log(`searchPreparation: currentPage=${currentPage}, start=${start}, pageSize=${pageSize}`);
     try {
         const responselist = await fetch('/api/search-preparation', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 branch: branch,
-                start: 0,
-                length: 100,
+                start: start,
+                length: pageSize,
                 status: window.selectedStatus, // ส่งค่า status ที่เลือกจากปุ่ม
                 category: document.getElementById("filterCategory").value,
                 documentID: document.getElementById("filterDocument").value
@@ -16,42 +21,195 @@ async function searchPreparation() {
             })
         });
         const datalist = await responselist.json();
+        console.log("API response:", datalist);
 
         if (!datalist.success){
             console.error("API Error:", datalist.message || "No error message provided");
             throw new Error("Failed to load");
         } 
 
+        // คำนวณจำนวนหน้าจาก totalRecords ที่ส่งกลับมาจาก API
+        const totalPages = Math.ceil(datalist.recordsTotal / pageSize);
+        // ถ้า currentPage มากกว่าจำนวนหน้าที่แท้จริงและยังมีข้อมูล (totalRecords > 0) ให้ปรับ currentPage และเรียก searchPreparation ใหม่
+        if (totalPages > 0 && datalist.data.length === 0 && currentPage > totalPages) {
+            currentPage = totalPages;
+            searchPreparation();
+            return;
+        }
+
         const PrepareList = document.getElementById('PrepareList');
-        // เปลี่ยนเป็น filterCategory ให้ตรง HTML
-        PrepareList.innerHTML = ""; //  ล้างค่าก่อนโหลดใหม่
-
-
+        PrepareList.innerHTML = ""; // ล้างข้อมูลเก่า
 
         // เพิ่มหมวดหมู่ที่ได้จาก API
         datalist.data.forEach(stocklists => {
-            PrepareList.innerHTML +=
-            `<a href="#" class="list-group-item list-group-item-action" aria-current="true">
-            <div class="d-flex w-100 justify-content-between">
-                <h5 class="mb-1">${stocklists.AR_NAME}</h5>
-                <button class="btn btn-success btn-detail" data-doc="${stocklists.DocumentID}">เริ่มจัด</button>
-            </div>
-            <p class="mb-1">${stocklists.DocumentID}</p>
-            <p class="mb-1">วันที่เอกสาร: ${stocklists.DI_DATE}</p>
-            </a>`;
+            const btnDisabled = (stocklists.canStart === 0) ? 'disabled' : '';
+            let btncolor = "";
+            if(stocklists.canStart == 0){
+                btncolor ="btn-secondary";
+            } else {
+                btncolor ="btn-success";
+            }
+            PrepareList.innerHTML += `
+                <a href="#" class="list-group-item list-group-item-action" aria-current="true">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">${stocklists.AR_NAME}</h5>
+                    <button class="btn ${btncolor} btn-detail" data-doc="${stocklists.DocumentID}" ${btnDisabled}>
+                    เริ่มจัด
+                    </button>
+                </div>
+                <p class="mb-1">${stocklists.DocumentID}</p>
+                <p class="mb-1">วันที่เอกสาร: ${stocklists.DI_DATE}</p>
+                </a>
+            `;
         });
-
+        // อัปเดต Pagination โดยใช้จำนวน record ทั้งหมดที่ส่งกลับจาก API
+        updatePagination(datalist.recordsTotal);
 
     } catch (error) {
         console.error("❌ Error loading:", error);
-        
-    
     } 
-        
-  
 }
-
-
+// ฟังก์ชันอัปเดต Pagination Control
+function updatePagination(totalRecords) {
+    const paginationContainer = document.getElementById('pagination');
+    paginationContainer.innerHTML = ""; // ล้างข้อมูลเก่า
+    const totalPages = Math.ceil(totalRecords / pageSize);
+    
+    if (totalPages <= 1) return;  // ไม่แสดง pagination หากมีหน้ารวมไม่เกิน 1 หน้า
+  
+    const maxVisiblePages = 7; // จำนวนหน้าสูงสุดที่จะแสดงใน bar
+    let startPage, endPage;
+  
+    if (totalPages <= maxVisiblePages) {
+      // ถ้าจำนวนหน้ารวมไม่เกิน maxVisiblePages ให้แสดงทุกหน้า
+      startPage = 1;
+      endPage = totalPages;
+    } else {
+      // คำนวณช่วงหน้าที่จะแสดง โดยให้ currentPage อยู่ตรงกลาง (ถ้าเป็นไปได้)
+      const half = Math.floor(maxVisiblePages / 2);
+      if (currentPage <= half + 1) {
+        startPage = 1;
+        endPage = maxVisiblePages;
+      } else if (currentPage + half >= totalPages) {
+        startPage = totalPages - maxVisiblePages + 1;
+        endPage = totalPages;
+      } else {
+        startPage = currentPage - half;
+        endPage = currentPage + half;
+      }
+    }
+  
+    const ul = document.createElement("ul");
+    ul.className = "pagination";
+  
+    // ปุ่ม Previous
+    const prevLi = document.createElement("li");
+    prevLi.className = currentPage === 1 ? "page-item disabled" : "page-item";
+    const prevLink = document.createElement("a");
+    prevLink.className = "page-link";
+    prevLink.href = "#";
+    prevLink.textContent = "Previous";
+    prevLink.addEventListener("click", function(e) {
+      e.preventDefault();
+      if (currentPage > 1) {
+        currentPage--;
+        searchPreparation();
+      }
+    });
+    prevLi.appendChild(prevLink);
+    ul.appendChild(prevLi);
+  
+    // ถ้า startPage > 1 ให้แสดงปุ่มหน้าแรกและ ellipsis
+    if (startPage > 1) {
+      const firstLi = document.createElement("li");
+      firstLi.className = "page-item";
+      const firstLink = document.createElement("a");
+      firstLink.className = "page-link";
+      firstLink.href = "#";
+      firstLink.textContent = "1";
+      firstLink.addEventListener("click", function(e) {
+        e.preventDefault();
+        currentPage = 1;
+        searchPreparation();
+      });
+      firstLi.appendChild(firstLink);
+      ul.appendChild(firstLi);
+  
+      if (startPage > 2) {
+        const ellipsis = document.createElement("li");
+        ellipsis.className = "page-item disabled";
+        const span = document.createElement("span");
+        span.className = "page-link";
+        span.textContent = "...";
+        ellipsis.appendChild(span);
+        ul.appendChild(ellipsis);
+      }
+    }
+  
+    // แสดงหมายเลขหน้าที่อยู่ในช่วงที่คำนวณได้
+    for (let i = startPage; i <= endPage; i++) {
+      const li = document.createElement("li");
+      li.className = (i === currentPage) ? "page-item active" : "page-item";
+      const a = document.createElement("a");
+      a.className = "page-link";
+      a.href = "#";
+      a.textContent = i;
+      a.addEventListener("click", function(e) {
+        e.preventDefault();
+        currentPage = i;
+        searchPreparation();
+      });
+      li.appendChild(a);
+      ul.appendChild(li);
+    }
+  
+    // ถ้า endPage < totalPages ให้แสดง ellipsis และปุ่มหน้าสุดท้าย
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        const ellipsis = document.createElement("li");
+        ellipsis.className = "page-item disabled";
+        const span = document.createElement("span");
+        span.className = "page-link";
+        span.textContent = "...";
+        ellipsis.appendChild(span);
+        ul.appendChild(ellipsis);
+      }
+  
+      const lastLi = document.createElement("li");
+      lastLi.className = "page-item";
+      const lastLink = document.createElement("a");
+      lastLink.className = "page-link";
+      lastLink.href = "#";
+      lastLink.textContent = totalPages;
+      lastLink.addEventListener("click", function(e) {
+        e.preventDefault();
+        currentPage = totalPages;
+        searchPreparation();
+      });
+      lastLi.appendChild(lastLink);
+      ul.appendChild(lastLi);
+    }
+  
+    // ปุ่ม Next
+    const nextLi = document.createElement("li");
+    nextLi.className = currentPage === totalPages ? "page-item disabled" : "page-item";
+    const nextLink = document.createElement("a");
+    nextLink.className = "page-link";
+    nextLink.href = "#";
+    nextLink.textContent = "Next";
+    nextLink.addEventListener("click", function(e) {
+      e.preventDefault();
+      if (currentPage < totalPages) {
+        currentPage++;
+        searchPreparation();
+      }
+    });
+    nextLi.appendChild(nextLink);
+    ul.appendChild(nextLi);
+  
+    paginationContainer.appendChild(ul);
+  }
+  
 // ✅ โหลดข้อมูลประเภทสินค้า
 async function loadProductCategories() {
     try {
@@ -182,7 +340,16 @@ async function loadStatusButtons() {
             }
             // อัปเดต URL โดยไม่ reload หน้าใหม่
             history.pushState(null, '', '?' + urlParams.toString());
-            
+
+            // เคลียร์ตารางที่แสดงอยู่ก่อนโหลดข้อมูลใหม่
+            const prepareList = document.getElementById('PrepareList');
+            if (prepareList) {
+                prepareList.innerHTML = "";
+            }
+            const paginationContainer = document.getElementById('pagination');
+            if (paginationContainer) {
+                paginationContainer.innerHTML = "";
+            }
             // เรียกค้นหาข้อมูลใหม่ตามตัวกรองที่อัปเดตแล้ว (ใช้ฟังก์ชัน searchPreparation)
             // if (typeof searchPreparation === "function") {
             //     searchPreparation();
@@ -228,36 +395,75 @@ async function loadStatusButtons() {
 
 
     // Event listener สำหรับปุ่มที่มี class "btn-detail"
-    document.addEventListener("click", function(event) {
-        if (event.target.classList.contains("btn-detail")) {
-            const docID = event.target.getAttribute("data-doc");
-            if (!docID) return;
-            const branch = localStorage.getItem("branch_code");
-            // เรียก API เพื่อเปลี่ยนสถานะเป็น 2 (รอการจัด)
-            fetch('/api/update-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ DI_REF: docID, branch: branch })
-            })
-            .then(response => response.json())
-            .then(result => {
-            if (result.success) {
-                // เมื่ออัปเดตสถานะสำเร็จ ให้เปลี่ยนหน้าไปยัง prepdetail.html
-                const categoryDropdown = document.getElementById("filterCategory");
-                const category = categoryDropdown ? categoryDropdown.value : "all";
-                const SearchStatus = window.selectedStatus;
-                window.location.href = `/prepdetail?di_ref=${encodeURIComponent(docID)}&category=${encodeURIComponent(category)}&SearchStatus=${encodeURIComponent(SearchStatus)}`;
-            } else {
-                alert("Failed to update status: " + result.message);
-            }
-            })
-            .catch(error => {
-            console.error("Error updating status:", error);
-            alert("Error updating status.");
-            });
-        }
-        });
-    
+    // document.addEventListener("click", function(event) {
+    //     if (event.target.classList.contains("btn-detail")) {
+    //         const docID = event.target.getAttribute("data-doc");
+    //         if (!docID) return;
+    //         const branch = localStorage.getItem("branch_code");
+    //         const categoryDropdown = document.getElementById("filterCategory");
+    //         const username = localStorage.getItem("username");
+    //         // เรียก API เพื่อเปลี่ยนสถานะเป็น 2 (รอการจัด)
+    //         fetch('/api/update-status', {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' },
+    //         body: JSON.stringify({ DI_REF: docID, branch: branch ,category :categoryDropdown.value,username: username})
+    //         })
+    //         .then(response => response.json())
+    //         .then(result => {
+    //         if (result.success) {
+    //             // เมื่ออัปเดตสถานะสำเร็จ ให้เปลี่ยนหน้าไปยัง prepdetail.html
+    //             // const categoryDropdown = document.getElementById("filterCategory");
+    //             const category = categoryDropdown ? categoryDropdown.value : "all";
+    //             const SearchStatus = window.selectedStatus;
+    //             window.location.href = `/prepdetail?di_ref=${encodeURIComponent(docID)}&category=${encodeURIComponent(category)}&SearchStatus=${encodeURIComponent(SearchStatus)}`;
+    //         } else {
+    //             alert("Failed to update status: " + result.message);
+    //         }
+    //         })
+    //         .catch(error => {
+    //         console.error("Error updating status:", error);
+    //         alert("Error updating status.");
+    //         });
+    //     }
+    //     });
+   // Event listener สำหรับปุ่ม "เริ่มจัด"
+document.addEventListener("click", function(event) {
+  if (event.target.classList.contains("btn-detail")) {
+      const docID = event.target.getAttribute("data-doc");
+      if (!docID) return;
+      const branch = localStorage.getItem("branch_code");
+      const categoryDropdown = document.getElementById("filterCategory");
+      const username = localStorage.getItem("username");
+
+      // เรียก API /api/update-status ซึ่งได้รวมฟังก์ชันล็อกและอัปเดทสถานะไว้แล้ว
+      fetch('/api/update-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+              DI_REF: docID, 
+              branch: branch,
+              category: categoryDropdown.value,
+              username: username 
+          })
+      })
+      .then(response => response.json())
+      .then(result => {
+          if (result.success) {
+              // เมื่อ response success แปลว่า record นั้นไม่ถูกล็อกโดยคนอื่นหรือถูกล็อกโดย currentUser
+              // เปลี่ยนหน้าไปยัง prepdetail.html
+              window.location.href = `/prepdetail?di_ref=${encodeURIComponent(docID)}&category=${encodeURIComponent(categoryDropdown.value)}&SearchStatus=${encodeURIComponent(window.selectedStatus)}`;
+          } else {
+              // ถ้า response ไม่ success (เช่น record ถูกล็อกโดยคนอื่น)
+              alert("ไม่สามารถเปิดเอกสารได้: " + result.message);
+          }
+      })
+      .catch(error => {
+          console.error("Error updating status:", error);
+          alert("เกิดข้อผิดพลาดในการเปิดเอกสาร");
+      });
+  }
+});
+
   
   });
 

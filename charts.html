@@ -103,32 +103,26 @@
                         </button>
                     </form>
 
-
                     <!-- Topbar Navbar -->
-                <!-- Topbar Navbar -->
-                <ul class="navbar-nav ml-auto">
+                    <ul class="navbar-nav ml-auto">
 
-                    <!-- Nav Item - Search Dropdown (Visible Only XS) -->
-                    
+                        <div class="topbar-divider d-none d-sm-block"></div>
 
-                    <div class="topbar-divider d-none d-sm-block"></div>
-
-                    <!-- Nav Item - User Information -->
-                    <li class="nav-item dropdown no-arrow">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
-                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <span class="mr-2 d-none d-lg-inline text-gray-600 small"></span>
-                            <img class="img-profile rounded-circle"
-                                src="img/undraw_profile.svg">
-                        </a>
+                        <!-- Nav Item - User Information -->
+                        <li class="nav-item dropdown no-arrow">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <span class="mr-2 d-none d-lg-inline text-gray-600 small"></span>
+                                <img class="img-profile rounded-circle"
+                                    src="img/undraw_profile.svg">
+                            </a>
                             <!-- Dropdown - User Information -->
                             <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
                                 aria-labelledby="userDropdown">
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
                                     <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
-                                    Logout
-                                </a>
+                                    Logout</a>
                             </div>
                         </li>
 
@@ -139,88 +133,73 @@
 
                 <!-- Begin Page Content -->
                 <div class="container-fluid">
+                    <!-- Breadcrumb Navigation -->
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="home">หน้าหลัก</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">รายงาน</li>
+                        </ol>
+                    </nav>
 
-
-                    <!-- <div class="container mt-4"> -->
-                        <h2>Stock Transaction List</h2>
-                        <div class="row">
-                            <div class="col-xl-12 col-md-12 mb-3">
-                                <div class="card border-light shadow">
-                                    <div class="card-header">
-                                        <h5 class="card-title">ค้นหา</h5>  
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <div class="form-group">
-                                                    <label for="filterDI_REF">เลขที่เอกสาร:</label>
-                                                    <input type="text" id="filterDI_REF" class="form-control">
-                                                </div>
+                    <h2>รายงาน</h2>
+                    <div class="row">
+                        <div class="col-xl-12 col-md-12 mb-3">
+                            <div class="card border-light shadow">
+                                <div class="card-header">
+                                    <h5 class="card-title">ค้นหา</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- เลือกเลขที่เอกสาร -->
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="filterDI_REF">เลขที่เอกสาร:</label>
+                                                <input type="text" id="filterDI_REF" class="form-control">
                                             </div>
-                                                <!-- สถานะ -->
-                                            <div class="col-md-4">
-                                                <div class="form-group">
-                                                    <label for="filterCHECKROUND">รอบตรวจจ่าย:</label>
-                                                    <input type="number" id="filterCHECKROUND" class="form-control">
-                                                </div>
-                                            </div>
-                                            
-                                                <!-- เลขที่เอกสาร -->
-                                            <div class="col-md-4">
-                                            </div>      
                                         </div>
+                                        <!-- รอบตรวจจ่าย -->
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="filterCHECKROUND">รอบตรวจจ่าย:</label>
+                                                <input type="number" id="filterCHECKROUND" class="form-control">
+                                            </div>
+                                        </div>
+                                        <!-- (สามารถเพิ่ม filter อื่น ๆ ได้ในคอลัมน์ที่เหลือ) -->
                                     </div>
-                                    
-                                    <div class="card-footer">
-                                        <div class = "row">
-                                            <div class="col-auto mr-auto"></div>
-                                            <div class="col-auto">
-                                                <button id="searchButton" class="btn btn-primary">ค้นหา</button>
-                                            </div>    
+                                    <!-- เพิ่ม Dropdown สำหรับเลือกประเภทรายงาน -->
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="reportTypeDropdown">ประเภทรายงาน:</label>
+                                                <select id="reportTypeDropdown" class="form-control">
+                                                    <option value="stock">รายงานตรวจจ่าย</option>
+                                                    <option value="preparationRecords">รายงานจัดเตรียม</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div> 
+                                <div class="card-footer">
+                                    <div class="row">
+                                        <div class="col-auto mr-auto"></div>
+                                        <div class="col-auto">
+                                            <button id="searchButton" class="btn btn-primary">ค้นหา</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div class="row">
-                            <div class="col-xl-12 col-md-12 mb-1">
-                                <div class="card shadow mb-4" id="dataTableContainer">
-                                    <div class="card-header"></div>
-                            
-                                    <div class="card-body">
-                                        <div class="table-responsive">
-                        
-                                        <table class="table table-bordered">
-                                            <thead>
-                                                <tr>
-                                                    <th>ลำดับที่</th>
-                                                    <th>เลขที่เอกสาร</th>
-                                                    <th>รหัสสินค้า</th>
-                                                    <th>ชื่อสินค้า</th>
-                                                    <th>ตำแหน่งสินค้า</th>
-                                                    <th>รอบตรวจจ่าย</th>
-                                                    <th>จำนวนที่ขาย</th>
-                                                    <th>จำนวนที่จ่าย</th>
-                                                    <th>จำนวนที่ต้องแก้ไข</th>
-                                                    <th>บันทึกโดย</th>
-                                                    <th>วันที่บันทึก</th>
-                                                    <th>แก้ไขโดย</th>
-                                                    <th>วันที่แก้ไข</th>
-                                                    <th>Action</th>
-                                                    <th style="display: none;" >ID</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="stockTableBody">
-                                                <!-- ข้อมูลจะถูกโหลดที่นี่ -->
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                    </div>
+
+                    <!-- Container สำหรับแสดงผลรายงาน -->
+                    <div class="row">
+                        <div class="col-xl-12 col-md-12 mb-1">
+                            <div class="card shadow mb-12" id="reportContainer">
+                                <!-- รายงานจะแสดงที่นี่ -->
+                               
                             </div>
-                            </div>
-                    <!-- </div> -->
-                    
+                        </div>
+                    </div>
 
                 </div>
                 <!-- /.container-fluid -->
@@ -260,41 +239,37 @@
                         <span aria-hidden="true">×</span>
                     </button>
                 </div>
-                <div class="modal-body">Select "Logout" below if you are ready to end your current session.</div>
+                <div class="modal-body">
+                    Select "Logout" below if you are ready to end your current session.
+                </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
-                    <button class="btn btn-primary" id="logoutButton" >Logout</button>
+                    <button class="btn btn-primary" id="logoutButton">Logout</button>
                 </div>
             </div>
         </div>
     </div>
+    
+    <!-- Scripts -->
     <script>
-        // Event listener for the logout button
+        // Event listener for logout
         document.getElementById('logoutButton').addEventListener('click', function() {
-            // Remove 'username' from localStorage
             localStorage.clear();
-            // Redirect user after logout (optional)
-            window.location.href = '/'; 
+            window.location.href = '/';
         });
     </script>
+    
+    
+
+    <!-- ReviseStock.js (หากมี) -->
     <script src="/js/ReviseStock.js"></script>
     <!-- Bootstrap core JavaScript-->
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-
     <!-- Core plugin JavaScript-->
     <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
-
     <!-- Custom scripts for all pages-->
     <script src="js/sb-admin-2.min.js"></script>
-
-    <!-- Page level plugins -->
-    <!-- <script src="vendor/chart.js/Chart.min.js"></script> -->
-
-    <!-- Page level custom scripts -->
-    <!-- <script src="js/demo/chart-area-demo.js"></script>
-    <script src="js/demo/chart-pie-demo.js"></script>
-    <script src="js/demo/chart-bar-demo.js"></script> -->
 
 </body>
 

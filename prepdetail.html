@@ -296,7 +296,7 @@
                 "title": "จำนวนจัดเตรียม",
                 "render": (data, type, row) => {
                   if ( (row.STATUS == 2 || row.STATUS == 3 || row.STATUS == 5 ) ) {
-                    return `<input type="number" class="form-control detail-input" value="${data || 0}" step="0.01" 
+                    return `<input type="number" class="form-control detail-input" step="0.01" 
                     oninput="if(parseFloat(this.value) > parseFloat(this.getAttribute('max'))){this.value = this.getAttribute('max');} else { this.value = fixDecimal(this.value); }" 
                     data-doc="${row.DI_REF}" data-prod="${row.SKU_CODE}" max="${row.PendingQty}" min="0">`;
                   }else{
