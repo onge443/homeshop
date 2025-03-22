@@ -545,7 +545,7 @@ app.post('/api/search-preparation', async (req, res) => {
                 FROM EXCEPT_CODE_LIST 
                 WHERE BRANCH_CODE = @Branch
               )
-              AND s2.STATUS IN (1, 3)
+              AND s2.STATUS IN (1, 3, 4, 5, 6)
           )
           THEN 1
           ELSE 0
@@ -823,7 +823,8 @@ app.post('/api/update-status', async (req, res) => {
         return res.status(400).json({ success: false, message: 'DI_REF is required' });
       }
       const pool = await getPool("TestOng");
-      let query = `
+      // Query ที่ 1: ดึงข้อมูลตาม DI_REF และ Category
+      let query1 = `
           SELECT 
           DI_REF, 
           DI_DATE, 
@@ -845,41 +846,66 @@ app.post('/api/update-status', async (req, res) => {
         if (Category != 'all') {
           // หาก Category เป็น 'K', 'R' หรือ 'A' ให้เพิ่มเงื่อนไขเฉพาะ
           if (Category === 'K') {
-            query += `
+            query1 += `
               AND SUBSTRING(ICCAT_CODE, 1, 1) = 'K'
             `;
           } else if (Category === 'R') {
-            query += `
+            query1 += `
               AND SUBSTRING(ICCAT_CODE, 1, 1) = 'R'
             `;
           } else if (Category === 'A') {
-            query += `
+            query1 += `
               AND SUBSTRING(ICCAT_CODE, 1, 1) = 'A'
             `;
           } 
         }else {
           // กรณีอื่นๆ ใช้กรองตามตัวอักษรตัวแรกเท่านั้น
           
-           query += ` AND SUBSTRING(ICCAT_CODE, 1, 1) in ('A','K','R') `;
+           query1 += ` AND SUBSTRING(ICCAT_CODE, 1, 1) in ('A','K','R') `;
         }
-       const requestObj = pool.request()
-         .input("DI_REF", sql.VarChar, DI_REF);
+        const requestObj1 = pool.request().input("DI_REF", sql.VarChar, DI_REF);
+        const result1 = await requestObj1.query(query1);
+        const records1 = result1.recordset;
       //  if (Category && Category !== "all" && Category !== 'K' && Category !== 'R' && Category !== 'A') {
       //    requestObj.input("Category", sql.NVarChar, Category);
       //  }
-        
-      const result = await requestObj.query(query);
-      if (result.recordset.length > 0) {
-        res.json({ success: true, data: result.recordset });
-      } else {
-        res.json({ success: false, message: 'No data found for this DI_REF and Category' });
+      // Query ที่ 2: ดึงข้อมูลตาม DI_REF และ ICCAT_CODE = 'รด1' (ไม่สนใจ Category)
+        const query2 = `
+        SELECT
+          DI_REF,
+          DI_DATE,
+          SKU_CODE,
+          SKU_NAME,
+          ICCAT_CODE,
+          ICCAT_NAME AS ProductCategoryName,
+          TOTAL_SKU_QTY AS SoldQty,
+          TOTAL_CR_QTY AS ReceivedQty,
+          PREPARE_REMAINING AS PendingQty,
+          LATEST_PREPARE_QTY,
+          STATUS,
+          AR_NAME,
+          SKU_ICDEPT
+        FROM Stock_Summary
+        Where SKU_ICDEPT not in(select SKU_ICDEPT from EXCEPT_CODE_LIST where BRANCH_CODE='HS54')
+        AND DI_REF = @DI_REF
+        AND ICCAT_CODE = 'รด1'
+      `;
+        const requestObj2 = pool.request().input("DI_REF", sql.VarChar, DI_REF);
+        const result2 = await requestObj2.query(query2);
+        const records2 = result2.recordset; 
+        // รวมผลลัพธ์จากทั้งสอง Query เข้าด้วยกัน
+        const combinedResults = [...records1, ...records2]; 
+            
+        if (combinedResults.length > 0) {
+          res.json({ success: true, data: combinedResults });
+        } else {
+          res.json({ success: false, message: 'No data found for this DI_REF' });
+        }
+      } catch (error) {
+        console.error("Error in /api/get-preparation-details:", error);
+        res.status(500).json({ success: false, message: "Database error", error: error.message });
       }
-    } 
-    catch (error) {
-      console.error("Error in /api/get-preparation-details:", error);
-      res.status(500).json({ success: false, message: "Database error", error: error.message });
-    }
-  });
+      });
 
   
 app.post('/api/get-stock-details', async (req, res) => {
