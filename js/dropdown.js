@@ -54,7 +54,7 @@ async function searchPreparation() {
                 <div class="d-flex w-100 justify-content-between">
                     <h5 class="mb-1">${stocklists.AR_NAME}</h5>
                     <button class="btn ${btncolor} btn-detail" data-doc="${stocklists.DocumentID}" ${btnDisabled}>
-                    เริ่มจัด
+                    เปิดเอกสาร
                     </button>
                 </div>
                 <p class="mb-1">${stocklists.DocumentID}</p>
@@ -427,44 +427,57 @@ async function loadStatusButtons() {
     //     }
     //     });
    // Event listener สำหรับปุ่ม "เริ่มจัด"
-document.addEventListener("click", function(event) {
-  if (event.target.classList.contains("btn-detail")) {
-      const docID = event.target.getAttribute("data-doc");
-      if (!docID) return;
-      const branch = localStorage.getItem("branch_code");
-      const categoryDropdown = document.getElementById("filterCategory");
-      const username = localStorage.getItem("username");
+// document.addEventListener("click", function(event) {
+//   if (event.target.classList.contains("btn-detail")) {
+//       const docID = event.target.getAttribute("data-doc");
+//       if (!docID) return;
+//       const branch = localStorage.getItem("branch_code");
+//       const categoryDropdown = document.getElementById("filterCategory");
+//       const username = localStorage.getItem("username");
 
-      // เรียก API /api/update-status ซึ่งได้รวมฟังก์ชันล็อกและอัปเดทสถานะไว้แล้ว
-      fetch('/api/update-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-              DI_REF: docID, 
-              branch: branch,
-              category: categoryDropdown.value,
-              username: username 
-          })
-      })
-      .then(response => response.json())
-      .then(result => {
-          if (result.success) {
-              // เมื่อ response success แปลว่า record นั้นไม่ถูกล็อกโดยคนอื่นหรือถูกล็อกโดย currentUser
-              // เปลี่ยนหน้าไปยัง prepdetail.html
-              window.location.href = `/prepdetail?di_ref=${encodeURIComponent(docID)}&category=${encodeURIComponent(categoryDropdown.value)}&SearchStatus=${encodeURIComponent(window.selectedStatus)}`;
-          } else {
-              // ถ้า response ไม่ success (เช่น record ถูกล็อกโดยคนอื่น)
-              alert("ไม่สามารถเปิดเอกสารได้: " + result.message);
-          }
-      })
-      .catch(error => {
-          console.error("Error updating status:", error);
-          alert("เกิดข้อผิดพลาดในการเปิดเอกสาร");
-      });
+//       // เรียก API /api/update-status ซึ่งได้รวมฟังก์ชันล็อกและอัปเดทสถานะไว้แล้ว
+//       fetch('/api/update-status', {
+//           method: 'POST',
+//           headers: { 'Content-Type': 'application/json' },
+//           body: JSON.stringify({ 
+//               DI_REF: docID, 
+//               branch: branch,
+//               category: categoryDropdown.value,
+//               username: username 
+//           })
+//       })
+//       .then(response => response.json())
+//       .then(result => {
+//           if (result.success) {
+//               // เมื่อ response success แปลว่า record นั้นไม่ถูกล็อกโดยคนอื่นหรือถูกล็อกโดย currentUser
+//               // เปลี่ยนหน้าไปยัง prepdetail.html
+//               window.location.href = `/prepdetail?di_ref=${encodeURIComponent(docID)}&category=${encodeURIComponent(categoryDropdown.value)}&SearchStatus=${encodeURIComponent(window.selectedStatus)}`;
+//           } else {
+//               // ถ้า response ไม่ success (เช่น record ถูกล็อกโดยคนอื่น)
+//               alert("ไม่สามารถเปิดเอกสารได้: " + result.message);
+//           }
+//       })
+//       .catch(error => {
+//           console.error("Error updating status:", error);
+//           alert("เกิดข้อผิดพลาดในการเปิดเอกสาร");
+//       });
+//   }
+// });
+document.getElementById('PrepareList').addEventListener('click', function(e) {
+  const target = e.target.closest('.btn-detail');
+  if (target) {
+      e.preventDefault();
+      const docID = target.getAttribute("data-doc");
+      if (!docID) return;
+      
+      const categoryDropdown = document.getElementById("filterCategory");
+      const categoryValue = categoryDropdown ? categoryDropdown.value : "all";
+      const currentSearchStatus = window.selectedStatus;
+      
+      window.location.href = `/prepdetail?di_ref=${encodeURIComponent(docID)}&category=${encodeURIComponent(categoryValue)}&SearchStatus=${encodeURIComponent(currentSearchStatus)}`;
   }
 });
 
-  
   });
 
 // }

@@ -24,13 +24,13 @@ document.addEventListener("DOMContentLoaded", () => {
             const CHECKROUND_input = document.getElementById('filterCHECKROUND').value.trim();
             const DI_REF = DI_REF_input !== "" ? DI_REF_input : null;
             const CHECKROUND = CHECKROUND_input !== "" ? parseInt(CHECKROUND_input, 10) : null;
-            
+
             // แสดงข้อความกำลังโหลดใน container ผลลัพธ์
             const reportContainer = document.getElementById('reportContainer');
             if (reportContainer) {
                 reportContainer.innerHTML = "<p>กำลังโหลด...</p>";
             }
-            
+
             // ถ้า reportType เป็น "stock" ให้โหลดข้อมูลจาก stock transactions
             if(reportType === 'stock'){
                 loadStockTransactions({ DI_REF, CHECKROUND, branch });
@@ -113,7 +113,7 @@ function renderReportTable(data) {
     `;
     data.forEach((row, index) => {
         html += `
-            <tr data-documentid="${row.DI_REF}" data-id="${row.ID}">
+            <tr data-documentid="${row.DI_REF}" data-id="${row.ID}" data-sku-code="${row.SKU_CODE}">
                 <td>${row.ID}</td>
                 <td>${row.DI_REF}</td>
                 <td>${row.ICCAT_CODE}</td>
@@ -167,8 +167,9 @@ function enableRowEditing(row) {
         const newStatus = row.querySelector('.edit-status').value;
         const newPrepareQty = row.querySelector('.edit-prepareqty').value;
         const documentID = row.getAttribute('data-documentid');
+        const id = row.getAttribute('data-id'); // ดึงค่า ID จาก data-id
         const updated_by = localStorage.getItem('username') || "unknown_user";
-        updatePreparationRecord(documentID, newStatus, newPrepareQty, updated_by, row);
+        updatePreparationRecord(documentID, newStatus, newPrepareQty, updated_by, id, row); // ส่ง id ไปยังฟังก์ชัน
     });
 
     actionCell.querySelector('.cancel-btn').addEventListener('click', function() {
@@ -179,7 +180,8 @@ function enableRowEditing(row) {
     });
 }
 
-function updatePreparationRecord(documentID, status, prepare_qty, updated_by, row) {
+function updatePreparationRecord(documentID, status, prepare_qty, updated_by, id, row) { // รับ parameter id เพิ่ม
+    const skuCode = row.getAttribute('data-sku-code'); // ดึงค่า SKU_CODE จาก data attribute
     fetch('/api/update-preparation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,7 +189,9 @@ function updatePreparationRecord(documentID, status, prepare_qty, updated_by, ro
             documentID: documentID,
             status: status,
             prepare_qty: prepare_qty,
-            updated_by: updated_by
+            updated_by: updated_by,
+            id: id, // ส่ง id ใน body
+            SKU_CODE: skuCode // ส่ง SKU_CODE ไปด้วย
         })
     })
     .then(response => response.json())
@@ -226,7 +230,8 @@ async function CheckRight() {
 // ฟังก์ชันสำหรับโหลดข้อมูล "รายงานตรวจจ่าย" (stock report)
 // ตัวอย่างนี้เป็นแนวทาง คุณสามารถปรับแต่งตามการตอบกลับจาก API ของคุณ
 async function loadStockTransactions(params) {
-   
+
+
         const searchParams = {
             DI_REF: params.DI_REF,
             CHECKROUND: params.CHECKROUND,
@@ -239,7 +244,7 @@ async function loadStockTransactions(params) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(searchParams)
             });
-            document.getElementById("reportContainer").innerHTML = 
+            document.getElementById("reportContainer").innerHTML =
             `
             <table class="table table-bordered">
                 <thead>
@@ -264,9 +269,9 @@ async function loadStockTransactions(params) {
         `;
 
             const { data } = await response.json();
-           
+
             const tableBody = document.getElementById("stockTableBody");
-            tableBody.innerHTML = ""; 
+            tableBody.innerHTML = "";
 
             if (!data || data.length === 0) {
                 alert("ไม่พบข้อมูล");
@@ -274,13 +279,14 @@ async function loadStockTransactions(params) {
             }
 
 
-            
+
+
             document.querySelectorAll(".cr_qty_input").forEach(input => {
                 input.addEventListener("input", function () {
                     let value = parseInt(this.value, 10);
                     let min = parseInt(this.min, 10);
                     let max = parseInt(this.max, 10);
-            
+
                     if (value < min) {
                         this.value = min;
                     } else if (value > max) {
@@ -289,13 +295,11 @@ async function loadStockTransactions(params) {
                 });
             });
 
-            
-            
 
             data.forEach((item, index) => {
                 const row = document.createElement("tr");
                 const remainingQty = item.REMAINING_QTY !== null && item.REMAINING_QTY !== undefined ? item.REMAINING_QTY : 0;
-            
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${item.DI_REF}</td>
@@ -305,12 +309,12 @@ async function loadStockTransactions(params) {
                     <td>${item.SKU_QTY}</td>
                     <td>${item.CR_QTY}</td>
                     <td>
-                        <input type="number" 
-                            class="form-control cr_qty_input" 
-                            id="cr_qty_input${index + 1}" 
-                            value="${item.CR_QTY}" 
-                            min="0" 
-                            max="${remainingQty}" 
+                        <input type="number"
+                            class="form-control cr_qty_input"
+                            id="cr_qty_input${index + 1}"
+                            value="${item.CR_QTY}"
+                            min="0"
+                            max="${remainingQty}"
                             disabled>
                     </td>
                     <td>${item.UPDATE_BY || "-"}</td>
@@ -322,8 +326,7 @@ async function loadStockTransactions(params) {
                      <td style="display: none;">${item.ID}</td>
                 `;
                 tableBody.appendChild(row);
-        
-            
+
 
                 const editButton = row.querySelector(".btn-edit");
                 const saveButton = row.querySelector(".btn-save");
@@ -402,8 +405,9 @@ function enableRowEditing(row) {
         const newStatus = row.querySelector('.edit-status').value;
         const newPrepareQty = row.querySelector('.edit-prepareqty').value;
         const documentID = row.getAttribute('data-documentid');
+        const id = row.getAttribute('data-id'); // ดึงค่า ID จาก data-id
         const updated_by = localStorage.getItem('username') || "unknown_user";
-        updatePreparationRecord(documentID, newStatus, newPrepareQty, updated_by, row);
+        updatePreparationRecord(documentID, newStatus, newPrepareQty, updated_by, id, row); // ส่ง id ไปยังฟังก์ชัน
     });
 
     // ผูก event ให้กับปุ่ม Cancel
@@ -414,4 +418,3 @@ function enableRowEditing(row) {
         actionCell.innerHTML = `<button class="btn btn-success edit-btn">Edit</button>`;
     });
 }
-
