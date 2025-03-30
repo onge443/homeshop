@@ -164,6 +164,25 @@
                                                 <input type="number" id="filterCHECKROUND" class="form-control">
                                             </div>
                                         </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="filterCustomerName">ชื่อลูกค้า:</label>
+                                                <input type="text" id="filterCustomerName" class="form-control">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="filterStartDate">วันที่เริ่มต้น:</label>
+                                                <input type="date" id="filterStartDate" class="form-control">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="filterEndDate">วันที่สิ้นสุด:</label>
+                                                <input type="date" id="filterEndDate" class="form-control">
+                                            </div>
+                                        </div>
+                                        
                                         <!-- (สามารถเพิ่ม filter อื่น ๆ ได้ในคอลัมน์ที่เหลือ) -->
                                     </div>
                                     <!-- เพิ่ม Dropdown สำหรับเลือกประเภทรายงาน -->
@@ -174,6 +193,7 @@
                                                 <select id="reportTypeDropdown" class="form-control">
                                                     <option value="stock">รายงานตรวจจ่าย</option>
                                                     <option value="preparationRecords">รายงานจัดเตรียม</option>
+                                                    <option value="stocksummary">รายงานคงค้าง</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -190,7 +210,11 @@
                             </div>
                         </div>
                     </div>
-
+                    <div class="row mb-3">
+                        <div class="col-auto">
+                            <button id="exportChartData" class="btn btn-success">Export to Excel</button>
+                        </div>
+                    </div>
                     <!-- Container สำหรับแสดงผลรายงาน -->
                     <div class="row">
                         <div class="col-xl-12 col-md-12 mb-1">
@@ -262,7 +286,8 @@
     
 
     <!-- ReviseStock.js (หากมี) -->
-    <script src="/js/ReviseStock.js"></script>
+    <!-- <script src="/js/ReviseStock.js"></script> -->
+    <script type="module" src="/js/ReviseStock.js"></script>
     <!-- Bootstrap core JavaScript-->
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
@@ -270,6 +295,7 @@
     <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
     <!-- Custom scripts for all pages-->
     <script src="js/sb-admin-2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 </body>
 

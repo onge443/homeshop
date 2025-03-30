@@ -296,7 +296,7 @@
         }
 
         // กำหนดสถานะปุ่ม "เริ่มจัด"
-        if (["5", "6"].includes(String(first.STATUS))) { // ตรวจสอบสถานะ 5 หรือ 6 ก่อน
+        if (["6"].includes(String(first.STATUS))) { // ตรวจสอบสถานะ 5 หรือ 6 ก่อน
           startProcessingBtn.disabled = true;
           startProcessingBtn.title = "ไม่สามารถเริ่มจัดได้ เนื่องจากสถานะเอกสารเสร็จสิ้นแล้ว";
         } else if (hasStatus3 || hasStatus1) { // ถ้าไม่เป็นสถานะ 5 หรือ 6 และมีสถานะ 3 หรือ 1 อยู่

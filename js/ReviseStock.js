@@ -1,5 +1,4 @@
 // ReviseStock.js
-
 document.addEventListener("DOMContentLoaded", () => {
     // ตรวจสอบสิทธิ์ผู้ใช้
     const username = localStorage.getItem("username");
@@ -14,6 +13,10 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = '/';
         return;
     }
+    const exportButton = document.getElementById("exportChartData");
+    if (exportButton) {
+        exportButton.addEventListener("click", exportToExcel);
+    }
 
     // ติดตั้ง event listener สำหรับปุ่มค้นหา
     const searchButton = document.getElementById("searchButton");
@@ -22,6 +25,10 @@ document.addEventListener("DOMContentLoaded", () => {
             const reportType = document.getElementById('reportTypeDropdown').value;
             const DI_REF_input = document.getElementById('filterDI_REF').value.trim();
             const CHECKROUND_input = document.getElementById('filterCHECKROUND').value.trim();
+            // ดึงค่าจาก Filter อื่นๆ เพิ่มเติม
+            const startDate = document.getElementById("filterStartDate").value;
+            const endDate = document.getElementById("filterEndDate").value;
+            const customerName = document.getElementById("filterCustomerName").value.trim();
             const DI_REF = DI_REF_input !== "" ? DI_REF_input : null;
             const CHECKROUND = CHECKROUND_input !== "" ? parseInt(CHECKROUND_input, 10) : null;
 
@@ -33,7 +40,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // ถ้า reportType เป็น "stock" ให้โหลดข้อมูลจาก stock transactions
             if(reportType === 'stock'){
-                loadStockTransactions({ DI_REF, CHECKROUND, branch });
+                loadStockTransactions({ DI_REF, CHECKROUND, branch, startDate,
+                    endDate,
+                    customerName });
             }
             // ถ้า reportType เป็น "preparationRecords" ให้ดึงข้อมูลจาก API
             else if(reportType === 'preparationRecords'){
@@ -43,13 +52,50 @@ document.addEventListener("DOMContentLoaded", () => {
                     body: JSON.stringify({
                         reportType: reportType,
                         DI_REF: DI_REF,
-                        CHECKROUND: CHECKROUND
+                        CHECKROUND: CHECKROUND,
+                        startDate: document.getElementById("filterStartDate").value,
+                        endDate: document.getElementById("filterEndDate").value,
+                        customerName: document.getElementById("filterCustomerName").value,
+                        showRound: true // ✅ เพิ่ม showRound สำหรับรายงานจัดเตรียม
+                    })
+                })
+                
+                .then(response => response.json())
+                .then(result => {
+                    if(result.success && result.data && result.data.length > 0) {
+                        renderReportTable(result.data);
+                    } else {
+                        if(reportContainer) {
+                            reportContainer.innerHTML = "<p>ไม่มีข้อมูล</p>";
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    if(reportContainer) {
+                        reportContainer.innerHTML = "<p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>";
+                    }
+                });
+            }
+            // ถ้า reportType เป็น "stocksummary" ให้ดึงข้อมูลจาก API
+            else if(reportType === 'stocksummary'){
+                fetch('/api/get-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reportType: reportType,
+                        DI_REF: DI_REF,
+                        CHECKROUND: CHECKROUND,
+                        startDate: document.getElementById("filterStartDate").value,
+                        endDate: document.getElementById("filterEndDate").value,
+                        customerName: document.getElementById("filterCustomerName").value,
+                        showRound: true // ✅ เพิ่ม showRound สำหรับรายงานคงค้าง
                     })
                 })
                 .then(response => response.json())
                 .then(result => {
                     if(result.success && result.data && result.data.length > 0) {
-                        renderReportTable(result.data);
+                        renderStockSummaryTable(result.data);
                     } else {
                         if(reportContainer) {
                             reportContainer.innerHTML = "<p>ไม่มีข้อมูล</p>";
@@ -89,9 +135,51 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+// --- ส่วนที่เพิ่มเข้ามา ---
+const reportTypeDropdown = document.getElementById('reportTypeDropdown');
 
+// 1. ตั้งค่าเริ่มต้นเมื่อโหลดหน้าเสร็จ
+if (reportTypeDropdown) {
+    const initialReportType = reportTypeDropdown.value;
+    toggleCustomerFilter(initialReportType); // เรียกใช้ฟังก์ชันเพื่อตั้งค่า disable/enable เริ่มต้น
+}
 
-// สำหรับ "รายงานจัดเตรียม" – แสดงตารางพร้อมปุ่ม Edit
+// 2. เพิ่ม Event Listener ให้กับ Dropdown
+if (reportTypeDropdown) {
+    reportTypeDropdown.addEventListener('change', function(event) {
+        const selectedType = event.target.value; // หรือ this.value
+        toggleCustomerFilter(selectedType); // เรียกใช้ฟังก์ชันเมื่อมีการเปลี่ยนแปลง
+    });
+}
+// --- จบส่วนที่เพิ่มเข้ามา ---
+// Object สำหรับ map ค่า status ID เป็นข้อความภาษาไทย
+const statusMapping = {
+    1: "รอจัด",
+    2: "กำลังจัด",
+    3: "จัดบางส่วน",
+    4: "จัดเสร็จ",
+    5: "จ่ายบางส่วน",
+    6: "จ่ายทั้งหมด"
+    // เพิ่มสถานะอื่นๆ ถ้ามี
+};
+// --- เพิ่มฟังก์ชันสำหรับ เปิด/ปิด การใช้งานช่องกรอกชื่อลูกค้า ---
+function toggleCustomerFilter(selectedReportType) {
+    const customerInput = document.getElementById('filterCustomerName');
+    if (customerInput) { // ตรวจสอบว่า element มีอยู่จริง
+        if (selectedReportType === 'stock') { // <-- ตรวจสอบว่าเป็นรายงานตรวจจ่ายหรือไม่
+            customerInput.disabled = true;
+            customerInput.value = ''; // ล้างค่าในช่องเมื่อถูก disable (ทางเลือก)
+            // อาจจะเพิ่ม style ให้ดูจางลง (ทางเลือก)
+            // customerInput.style.backgroundColor = '#e9ecef';
+        } else {
+            customerInput.disabled = false;
+            // คืน style เดิม (ทางเลือก)
+            // customerInput.style.backgroundColor = '';
+        }
+    }
+}
+// --- จบฟังก์ชัน ---
+// สำหรับ "รายงานจัดเตรียม" และ "รายงานคงค้าง" – แสดงตารางพร้อมปุ่ม Edit
 function renderReportTable(data) {
     let html = `
         <table class="table table-bordered">
@@ -99,31 +187,36 @@ function renderReportTable(data) {
                 <tr>
                     <th>ID</th>
                     <th>เลขที่เอกสาร</th>
+                    <th>วันที่เอกสาร</th>
                     <th>ICCAT_CODE</th>
                     <th>ICCAT_NAME</th>
                     <th>PREPARE_QTY</th>
-                    <th>PreparedBy</th>
-                    <th>Timestamp</th>
+                    <th>PreparedBy</th>                   
                     <th>Status</th>
                     <th>SKU_CODE</th>
+                    <th>รอบ</th> 
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody id="reportTableBody">
     `;
     data.forEach((row, index) => {
+         // --- ส่วนนี้คือการนำค่า status ไปหาใน mapping ---
+         const statusText = statusMapping[row.Status] || (row.Status !== null ? row.Status : '-');
+         // statusMapping[row.STATUS] -> ค้นหาข้อความไทย
+         // || (...) -> ถ้าหาไม่เจอ หรือ row.STATUS เป็น null/undefined ให้แสดงค่าเดิม หรือ '-'
         html += `
-            <tr data-documentid="${row.DI_REF}" data-id="${row.ID}" data-sku-code="${row.SKU_CODE}">
+            <tr data-documentid="${row.DI_REF}" data-id="${row.ID}" data-sku-code="${row.SKU_CODE}" data-status="${row.Status}">
                 <td>${row.ID}</td>
                 <td>${row.DI_REF}</td>
+                <td>${row.DI_DATE ? new Date(row.DI_DATE).toLocaleString('th-TH') : '-'}</td>
                 <td>${row.ICCAT_CODE}</td>
                 <td>${row.ICCAT_NAME}</td>
                 <td class="prepareqty-cell">${row.PREPARE_QTY}</td>
                 <td>${row.PreparedBy}</td>
-                <td>${row.Timestamp}</td>
-                <td class="status-cell">${row.Status}</td>
+                <td class="status-cell">${statusText}</td>
                 <td>${row.SKU_CODE}</td>
-                <td class="action-cell">
+                <td>${row.Round}</td> <td class="action-cell">
                     <button class="btn btn-success edit-btn">Edit</button>
                 </td>
             </tr>
@@ -142,20 +235,92 @@ function attachEditListeners() {
     editButtons.forEach(btn => {
         btn.addEventListener('click', function() {
             const row = this.closest('tr');
-            enableRowEditing(row);
+            enableRowEditing1(row);
         });
     });
 }
+function renderStockSummaryTable(data) {
+    // กำหนด Header ของตาราง
+    let html = `
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>เลขที่เอกสาร</th>
+                    <th>วันที่เอกสาร</th>
+                    <th>ชื่อลูกค้า</th>
+                    <th>รหัสสินค้า</th>
+                    <th>ชื่อสินค้า</th>
+                    <th>หมวดหมู่สินค้า</th> 
+                    <th>จำนวนขาย</th>     
+                    <th>จำนวนรับ</th>     
+                    <th>จำนวนค้าง</th>    
+                    <th>จำนวนจัดล่าสุด</th>
+                    <th>สถานะ</th>
+                    </tr>
+            </thead>
+            <tbody id="reportTableBody">
+    `;
 
-function enableRowEditing(row) {
+    data.forEach((row, index) => {
+            // --- ส่วนนี้คือการนำค่า status ไปหาใน mapping ---
+            const statusText = statusMapping[row.STATUS] || (row.STATUS !== null ? row.STATUS : '-');
+            // statusMapping[row.STATUS] -> ค้นหาข้อความไทย
+            // || (...) -> ถ้าหาไม่เจอ หรือ row.STATUS เป็น null/undefined ให้แสดงค่าเดิม หรือ '-'
+        
+        // *** ใช้ชื่อ property ให้ตรงกับข้อมูลที่ API ส่งมา (หลัง AS) ***
+        html += `
+            <tr data-documentid="${row.DI_REF}" data-sku-code="${row.SKU_CODE}">
+                <td>${row.DI_REF || '-'}</td>
+                <td>${row.DI_DATE ? new Date(row.DI_DATE).toLocaleDateString('th-TH') : '-'}</td>
+                <td>${row.AR_NAME || '-'}</td>
+                <td>${row.SKU_CODE || '-'}</td>
+                <td>${row.SKU_NAME || '-'}</td>
+                <td>${row.ProductCategoryName || '-'}</td> 
+                <td>${row.SoldQty !== null ? row.SoldQty : '-'}</td> 
+                <td>${row.ReceivedQty !== null ? row.ReceivedQty : '-'}</td> 
+                <td>${row.PendingQty !== null ? row.PendingQty : '-'}</td> 
+                <td>${row.LATEST_PREPARE_QTY !== null ? row.LATEST_PREPARE_QTY : '-'}</td>
+                <td>${statusText !== null ? statusText : '-'}</td>
+               </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+    document.getElementById('reportContainer').innerHTML = html;
+//     attachStockSummaryEditListeners();
+//     // attachStockSummaryEditListeners(); // (ถ้าต้องการ Edit)
+//     function attachStockSummaryEditListeners() {
+//         const editButtons = document.querySelectorAll('.edit-btn');
+//         editButtons.forEach(btn => {
+//             btn.addEventListener('click', function() {
+//                 const row = this.closest('tr');
+//                 enableRowEditing1(row);
+//             });
+//         });
+}
+
+function enableRowEditing1(row) {
     const statusCell = row.querySelector('.status-cell');
     const prepareQtyCell = row.querySelector('.prepareqty-cell');
     const actionCell = row.querySelector('.action-cell');
 
-    const originalStatus = statusCell.textContent.trim();
+    const originalstatusText = statusCell.textContent.trim();
+    const originalStatusId = row.getAttribute('data-status-id');
     const originalPrepareQty = prepareQtyCell.textContent.trim();
-
-    statusCell.innerHTML = `<input type="text" value="${originalStatus}" class="edit-status form-control">`;
+    let selectHtml = `<select class="edit-status form-control">`; // ใช้ class เดิม 'edit-status'
+    // วน loop สร้าง options จาก statusMapping
+    for (const [id, text] of Object.entries(statusMapping)) {
+        // ตรวจสอบว่า option นี้คือค่าเดิมหรือไม่ เพื่อใส่ 'selected'
+        const selected = (id === originalStatusId) ? 'selected' : '';
+        selectHtml += `<option value="${id}" ${selected}>${text}</option>`;
+    }
+    selectHtml += `</select>`;
+    // แทนที่เนื้อหาใน statusCell ด้วย Dropdown ที่สร้างขึ้น
+    statusCell.innerHTML = selectHtml;
+    // statusCell.innerHTML = `<input type="text" value="${originalStatus}" class="edit-status form-control">`;
     prepareQtyCell.innerHTML = `<input type="number" value="${originalPrepareQty}" class="edit-prepareqty form-control">`;
 
     actionCell.innerHTML = `
@@ -164,16 +329,19 @@ function enableRowEditing(row) {
     `;
 
     actionCell.querySelector('.save-btn').addEventListener('click', function() {
-        const newStatus = row.querySelector('.edit-status').value;
+        // ดึงค่า VALUE ที่ถูกเลือกจาก dropdown (ซึ่งก็คือ Status ID)
+        // const newStatus = row.querySelector('.edit-status').value;
+        const newStatusId = row.querySelector('.edit-status').value;
         const newPrepareQty = row.querySelector('.edit-prepareqty').value;
         const documentID = row.getAttribute('data-documentid');
         const id = row.getAttribute('data-id'); // ดึงค่า ID จาก data-id
         const updated_by = localStorage.getItem('username') || "unknown_user";
-        updatePreparationRecord(documentID, newStatus, newPrepareQty, updated_by, id, row); // ส่ง id ไปยังฟังก์ชัน
+        updatePreparationRecord(documentID, newStatusId, newPrepareQty, updated_by, id, row); // ส่ง id ไปยังฟังก์ชัน
     });
 
     actionCell.querySelector('.cancel-btn').addEventListener('click', function() {
-        statusCell.textContent = originalStatus;
+        // คืนค่า "ข้อความ" สถานะเดิมกลับไป
+        statusCell.textContent = originalstatusText; // ใช้ Text เดิมที่เก็บไว้
         prepareQtyCell.textContent = originalPrepareQty;
         actionCell.innerHTML = `<button class="btn btn-success edit-btn">Edit</button>`;
         attachEditListeners();
@@ -198,7 +366,11 @@ function updatePreparationRecord(documentID, status, prepare_qty, updated_by, id
     .then(result => {
         if(result.success) {
             alert("Update successful");
-            row.querySelector('.status-cell').textContent = status;
+            // --- ส่วนที่แก้ไข ---
+            // แปลง Status ID กลับเป็น Text ก่อนแสดงผล
+            const statusTextToDisplay = statusMapping[status] || status; // ค้นหาใน mapping, ถ้าไม่เจอให้แสดง ID เดิม
+            row.querySelector('.status-cell').textContent = statusTextToDisplay; // แสดง Text ที่แปลงแล้ว
+            // --- จบส่วนแก้ไข ---
             row.querySelector('.prepareqty-cell').textContent = prepare_qty;
             row.querySelector('.action-cell').innerHTML = `<button class="btn btn-success edit-btn">Edit</button>`;
             attachEditListeners();
@@ -229,17 +401,21 @@ async function CheckRight() {
 
 // ฟังก์ชันสำหรับโหลดข้อมูล "รายงานตรวจจ่าย" (stock report)
 // ตัวอย่างนี้เป็นแนวทาง คุณสามารถปรับแต่งตามการตอบกลับจาก API ของคุณ
-async function loadStockTransactions(params) {
+async function loadStockTransactions(params) { 
+    // params ตอนนี้จะมี startDate, endDate, customerName เพิ่มเข้ามาด้วย
 
-
+    // สร้าง object ที่จะส่งไปใน body ของ request
         const searchParams = {
             DI_REF: params.DI_REF,
             CHECKROUND: params.CHECKROUND,
-            BRANCH: params.branch
+            BRANCH: params.branch,
+            startDate: params.startDate || null, // ส่งเป็น null ถ้าไม่มีค่า
+            endDate: params.endDate || null,     // ส่งเป็น null ถ้าไม่มีค่า
+            customerName: params.customerName || null // ส่งเป็น null ถ้าไม่มีค่า
         };
 
         try {
-            const response = await fetch("/api/get-stock-transactions", {
+            const response = await fetch("/api/get-stock-transactions", {// ยิงไป API เดิม
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(searchParams)
@@ -260,7 +436,7 @@ async function loadStockTransactions(params) {
                         <th>แก้ไขโดย</th>
                         <th>วันที่แก้ไข</th>
                         <th>Action</th>
-                        <th style="display: none;">ID</th>
+                        
                     </tr>
                 </thead>
                 <tbody id="stockTableBody">
@@ -268,17 +444,33 @@ async function loadStockTransactions(params) {
             </table>
         `;
 
-            const { data } = await response.json();
+            // const { data } = await response.json();
 
-            const tableBody = document.getElementById("stockTableBody");
-            tableBody.innerHTML = "";
+            // const tableBody = document.getElementById("stockTableBody");
+            // tableBody.innerHTML = "";
 
-            if (!data || data.length === 0) {
-                alert("ไม่พบข้อมูล");
+            // if (!data || data.length === 0) {
+            //     alert("ไม่พบข้อมูล");
+            //     return;
+            // }
+            const result = await response.json(); // แก้ไข: รับค่า response เป็น result
+
+            // ***** แก้ไข: ตรวจสอบ success และ data จาก result *****
+            if (!result.success || !result.data || result.data.length === 0) {
+                const reportContainer = document.getElementById('reportContainer');
+                if(reportContainer){
+                    // แสดงข้อความ "ไม่มีข้อมูล" กลางตาราง หรือใช้ alert
+                    reportContainer.innerHTML = "<p>ไม่มีข้อมูลที่ตรงตามเงื่อนไข</p>";
+                } else {
+                    alert("ไม่พบข้อมูล");
+                }
                 return;
             }
 
-
+            const data = result.data; // ใช้ data จาก result.data
+            const tableBody = document.getElementById("stockTableBody");
+            tableBody.innerHTML = ""; // เคลียร์ tbody ก่อนเพิ่มข้อมูลใหม่
+    
 
 
             document.querySelectorAll(".cr_qty_input").forEach(input => {
@@ -323,7 +515,7 @@ async function loadStockTransactions(params) {
                         <button class="btn btn-warning btn-edit">Edit</button>
                         <button class="btn btn-success btn-save" hidden>Save</button>
                     </td>
-                     <td style="display: none;">${item.ID}</td>
+                     
                 `;
                 tableBody.appendChild(row);
 
@@ -379,7 +571,23 @@ async function loadStockTransactions(params) {
             console.error("Error fetching data:", error);
         }
 }
+// ฟังก์ชันสำหรับ Export ข้อมูลตารางเป็น Excel
+function exportToExcel() {
+    const reportContainer = document.getElementById('reportContainer');
+    const table = reportContainer.querySelector('table');
 
+    if (!table) {
+        alert('ไม่พบตารางข้อมูลสำหรับ Export');
+        return;
+    }
+
+    const ws = XLSX.utils.table_to_sheet(table);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Charts');
+
+    /* generate XLSX file and send to client */
+    XLSX.writeFile(wb, 'Charts.xlsx');
+}
 
 // ฟังก์ชันสำหรับเปิดโหมดแก้ไขแถว
 function enableRowEditing(row) {

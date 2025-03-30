@@ -649,7 +649,7 @@ app.post('/api/update-status', async (req, res) => {
 
     let updatedCount = 0;
     let redirectFlag = false;
-    const finalStatuses = ['4', '5', '6']; // สถานะสุดท้ายที่ไม่ควรเปลี่ยน
+    const finalStatuses = ['4','6']; // สถานะสุดท้ายที่ไม่ควรเปลี่ยน
 
     // ดึงข้อมูล SKU_ICDEPT ที่อยู่ใน EXCEPT_CODE_LIST สำหรับ branch นี้
     let exceptList;
@@ -671,7 +671,7 @@ app.post('/api/update-status', async (req, res) => {
 
       const currentStatus = String(row.STATUS);
 
-      // ถ้า record มี STATUS เป็น 4, 5 หรือ 6 ให้ข้ามการอัปเดต
+      // ถ้า record มี STATUS เป็น 4, 6 ให้ข้ามการอัปเดต
       if (finalStatuses.includes(currentStatus)) {
         redirectFlag = true; // ยังคงตั้ง redirectFlag ไว้เผื่อมี records อื่นที่ต้อง redirect
         continue;
@@ -680,7 +680,7 @@ app.post('/api/update-status', async (req, res) => {
       // ตรวจสอบเงื่อนไขเพิ่มเติม: record ต้องไม่อยู่ใน exceptList
       if (!exceptList.includes(row.SKU_ICDEPT)) {
         // อัปเดต STATUS เป็น 2 ถ้าสถานะเดิมเป็น 3 หรือ 1
-        if (currentStatus === '3' || currentStatus === '1') {
+        if (currentStatus === '3' || currentStatus === '1' || currentStatus === '5') {
           const updateQuery = `
             UPDATE stock_summary
             SET STATUS = 2,
@@ -1154,7 +1154,8 @@ app.post('/api/save-preparation', async (req, res) => {
                       LATEST_PREPARE_QTY,
                       TOTAL_SKU_QTY,
                       ICCAT_CODE,
-                      ICCAT_NAME
+                      ICCAT_NAME,
+                      DI_DATE
                   FROM stock_summary
                   WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE
               `);
@@ -1170,7 +1171,8 @@ app.post('/api/save-preparation', async (req, res) => {
                   LATEST_PREPARE_QTY: previousPreparedQty,
                   TOTAL_SKU_QTY: total,
                   ICCAT_CODE,
-                  ICCAT_NAME
+                  ICCAT_NAME,
+                  DI_DATE
               } = stockData;
 
               // ตรวจสอบสถานะ
@@ -1225,7 +1227,29 @@ app.post('/api/save-preparation', async (req, res) => {
                   throw new Error(`❌ ไม่สามารถอัปเดต stock_summary ได้ โปรดตรวจสอบ DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode}, และ BRANCH_CODE: ${branch}`);
               }
               console.log(`Stock summary updated successfully for DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch} with status =`, newStatus);
+              // ******** ส่วนที่เพิ่มเข้ามา: ตรวจสอบก่อน Insert ********
+              const checkExistRequest = new sql.Request(transaction);
+              checkExistRequest.timeout = 60000;
+              checkExistRequest.input('DI_REF', sql.NVarChar, DI_REF);
+              checkExistRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+              // ใช้เงื่อนไขที่ระบุการกระทำครั้งนี้ให้ชัดเจนที่สุด
+              checkExistRequest.input('PREPARE_QTY', sql.Decimal(18, 2), preparedQtyNumber); // จำนวนที่เตรียมครั้งนี้
+              checkExistRequest.input('PreparedBy', sql.NVarChar, PreparedBy); // User ที่เตรียมครั้งนี้
+              // อาจจะเพิ่มเงื่อนไข Timestamp ถ้าต้องการให้แคบลงมากๆ แต่ต้องระวังเรื่องความเร็ว retry
+              // checkExistRequest.input('TimestampCheck', sql.DateTime, new Date(Date.now() - 5 * 60 * 1000)); // ตัวอย่าง เช็ค 5 นาทีล่าสุด
+              const checkResult = await checkExistRequest.query(`
+                  SELECT COUNT(*) AS RecordCount
+                  FROM preparationRecords
+                  WHERE DI_REF = @DI_REF
+                    AND SKU_CODE = @SKU_CODE
+                    AND PREPARE_QTY = @PREPARE_QTY
+                    AND PreparedBy = @PreparedBy;
+                    
+              `);
 
+              const recordExists = checkResult.recordset[0].RecordCount > 0;
+
+              if (!recordExists) {
               // 3. บันทึกข้อมูลลง preparationRecords
               const insertRequest = new sql.Request(transaction);
               insertRequest.timeout = 60000;
@@ -1237,22 +1261,30 @@ app.post('/api/save-preparation', async (req, res) => {
               insertRequest.input('PreparedBy', sql.NVarChar, PreparedBy);
               insertRequest.input('Timestamp', sql.DateTime, new Date());
               insertRequest.input('Status', sql.NVarChar, newStatus);
+              insertRequest.input('DI_DATE', sql.DateTime, DI_DATE);
               await insertRequest.query(`
                   INSERT INTO preparationRecords
-                  (DI_REF, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
-                  VALUES (@DI_REF, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
+                  (DI_REF, DI_DATE, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
+                  VALUES (@DI_REF, @DI_DATE, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
               `);
-          }
+              console.log(`Preparation record inserted for DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode}`);
+            } else {
+                 console.log(`Skipping insert for DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode} - Record likely exists.`);
+                 // ไม่ต้องทำอะไร ปล่อยให้ Transaction ดำเนินต่อไป (ถือว่าการ Insert นี้สำเร็จไปแล้วในทางปฏิบัติ)
+            }
+            // ******** จบส่วนตรวจสอบก่อน Insert ********
+
+        } // จบ for loop updates
 
           await transaction.commit();
-          delete recordLocks[lockKey];
+          // delete recordLocks[lockKey];
           return res.json({ success: true, message: "Preparation saved successfully!" });
 
       } catch (error) {
           console.error("❌ Error saving preparation (attempt " + (retryCount + 1) + "):", error);
           if (transaction && transaction.active) {
               await transaction.rollback();
-          }
+          }// จบ while loop retry
 
           if (error.code === 'EREQUEST' && error.number === 1205) {
               // 1205 คือรหัส error สำหรับ deadlock ใน SQL Server
@@ -1481,7 +1513,7 @@ function getStatusValue(status) {
 
 app.post("/api/get-stock-transactions", async (req, res) => {
     try {
-        const { DI_REF, CHECKROUND, BRANCH } = req.body;
+        const { DI_REF, CHECKROUND, BRANCH, startDate, endDate, customerName } = req.body;
         const pool = await getPool("TestOng");
         const request = pool.request();
         request.input("BRANCH", sql.VarChar, BRANCH);
@@ -1493,7 +1525,7 @@ app.post("/api/get-stock-transactions", async (req, res) => {
                 CONVERT(varchar, s.CREATE_DATE, 103) AS CREATE_DATE,
                 ISNULL(s.UPDATE_BY, '-') AS UPDATE_BY,
                 CONVERT(varchar, s.UPDATE_DATE, 103) AS UPDATE_DATE,
-                s.CR_QTY + ss.REMAINING_QTY AS REMAINING_QTY -- ✅ ดึง REMAINING_QTY จาก stock_summary
+                s.CR_QTY + ss.REMAINING_QTY AS REMAINING_QTY 
             FROM Stock s
             LEFT JOIN Users u ON s.CREATE_BY = u.username
             LEFT JOIN stock_summary ss ON s.DI_REF = ss.DI_REF AND s.SKU_CODE = ss.SKU_CODE
@@ -1508,7 +1540,28 @@ app.post("/api/get-stock-transactions", async (req, res) => {
             query += ` AND s.CHECKROUND = @CHECKROUND`;
             request.input("CHECKROUND", sql.Int, CHECKROUND);
         }
+        // --- เปลี่ยนไปใช้ DI_DATE สำหรับกรองวันที่ ---
+        const dateColumn = "s.DI_DATE"; // <<<<<<< เปลี่ยนเป็น s.DI_DATE
+        if (startDate) {
+            query += ` AND ${dateColumn} >= @startDate`;
+            request.input("startDate", sql.Date, startDate); // ใช้ sql.Date หรือ sql.DateTime ตามชนิดข้อมูล DI_DATE
+        }
+        if (endDate) {
+            // หาก DI_DATE เก็บเวลาด้วย ควรปรับเป็นสิ้นสุดวัน
+            const endOfDay = new Date(endDate);
+            endOfDay.setHours(23, 59, 59, 997);
+            query += ` AND ${dateColumn} <= @endDate`;
+            request.input("endDate", sql.DateTime, endOfDay); // ใช้ sql.DateTime
+            // หรือถ้า DI_DATE เป็นแค่ Date:
+            // query += ` AND ${dateColumn} <= @endDate`;
+            // request.input("endDate", sql.Date, endDate);
+        }
+        // --- จบการเปลี่ยน ---
 
+        if (customerName) {
+            query += ` AND ss.AR_NAME LIKE @customerName + '%'`;
+            request.input("customerName", sql.NVarChar, customerName);
+        }
         query += ` ORDER BY s.CREATE_DATE DESC`;
 
         const result = await request.query(query);
@@ -1631,53 +1684,223 @@ app.post("/api/update-stock-transaction", async (req, res) => {
     }
 });
 
+// app.post('/api/get-report', async (req, res) => {
+//   try {
+//     const { reportType, DI_REF, CHECKROUND } = req.body;
+//     const pool = await getPool("TestOng");
+//     let query = "";
+//     let whereClauses = [];
+    
+//     // เลือก table ตาม reportType
+//     if(reportType === 'stock'){
+//       query = "SELECT * FROM stock";
+//     } else if(reportType === 'preparationRecords'){
+//       query = "SELECT * FROM preparationRecords";
+//     } else {
+//       return res.json({ success: false, message: "Invalid report type" });
+//     }
+    
+//     // ถ้ามีค่า DI_REF (เลขที่เอกสาร) ให้เพิ่มเงื่อนไขค้นหา
+//     if(DI_REF && DI_REF.trim() !== ""){
+//       whereClauses.push("DI_REF = @DI_REF");
+//     }
+    
+//     // ถ้ามีค่า CHECKROUND (รอบตรวจจ่าย) สามารถเพิ่มเงื่อนไขได้เช่นกัน
+//     if(CHECKROUND && CHECKROUND.toString().trim() !== ""){
+//       whereClauses.push("CHECKROUND = @CHECKROUND");
+//     }
+    
+//     // ถ้ามีเงื่อนไข ให้ต่อเข้าไปกับ query
+//     if(whereClauses.length > 0){
+//       query += " WHERE " + whereClauses.join(" AND ");
+//     }
+    
+//     const requestObj = pool.request();
+//     if(DI_REF && DI_REF.trim() !== ""){
+//       requestObj.input("DI_REF", sql.VarChar, DI_REF);
+//     }
+//     if(CHECKROUND && CHECKROUND.toString().trim() !== ""){
+//       requestObj.input("CHECKROUND", sql.Int, CHECKROUND);
+//     }
+    
+//     const result = await requestObj.query(query);
+//     res.json({ success: true, data: result.recordset });
+    
+//   } catch(error) {
+//     console.error(error);
+//     res.status(500).json({ success: false, message: "Database error", error: error.message });
+//   }
+// });
 app.post('/api/get-report', async (req, res) => {
   try {
-    const { reportType, DI_REF, CHECKROUND } = req.body;
-    const pool = await getPool("TestOng");
-    let query = "";
-    let whereClauses = [];
-    
-    // เลือก table ตาม reportType
-    if(reportType === 'stock'){
-      query = "SELECT * FROM stock";
-    } else if(reportType === 'preparationRecords'){
-      query = "SELECT * FROM preparationRecords";
-    } else {
-      return res.json({ success: false, message: "Invalid report type" });
-    }
-    
-    // ถ้ามีค่า DI_REF (เลขที่เอกสาร) ให้เพิ่มเงื่อนไขค้นหา
-    if(DI_REF && DI_REF.trim() !== ""){
-      whereClauses.push("DI_REF = @DI_REF");
-    }
-    
-    // ถ้ามีค่า CHECKROUND (รอบตรวจจ่าย) สามารถเพิ่มเงื่อนไขได้เช่นกัน
-    if(CHECKROUND && CHECKROUND.toString().trim() !== ""){
-      whereClauses.push("CHECKROUND = @CHECKROUND");
-    }
-    
-    // ถ้ามีเงื่อนไข ให้ต่อเข้าไปกับ query
-    if(whereClauses.length > 0){
-      query += " WHERE " + whereClauses.join(" AND ");
-    }
-    
-    const requestObj = pool.request();
-    if(DI_REF && DI_REF.trim() !== ""){
-      requestObj.input("DI_REF", sql.VarChar, DI_REF);
-    }
-    if(CHECKROUND && CHECKROUND.toString().trim() !== ""){
-      requestObj.input("CHECKROUND", sql.Int, CHECKROUND);
-    }
-    
-    const result = await requestObj.query(query);
-    res.json({ success: true, data: result.recordset });
-    
-  } catch(error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Database error", error: error.message });
+      const { reportType, DI_REF, CHECKROUND, startDate, endDate, customerName } = req.body;
+      const pool = await getPool("TestOng");
+      const requestObj = pool.request();
+
+      let baseQuery = "";
+        let whereConditions = []; // เปลี่ยนชื่อเป็น conditions เพื่อความชัดเจน
+        let queryParams = {}; // Object สำหรับเก็บ parameters ที่จะ bind
+
+        let hasBaseWhere = false; // Flag เช็คว่า query หลักมี WHERE แล้วหรือไม่
+
+      // 2. กำหนด Base Query และเงื่อนไขพื้นฐานตาม reportType
+        if (reportType === 'preparationRecords') {
+            baseQuery = `
+                SELECT
+                    ID, DI_REF, DI_DATE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY,
+                    PreparedBy, Status, SKU_CODE, update_date,
+                    updated_by,
+                    ROW_NUMBER() OVER(PARTITION BY DI_REF, SKU_CODE ORDER BY update_date ASC) AS Round
+                FROM preparationRecords
+            `;
+            // ไม่มี WHERE พื้นฐาน
+            hasBaseWhere = false;
+
+            // เพิ่มเงื่อนไข Filter สำหรับ preparationRecords
+            if (DI_REF && DI_REF.trim() !== "") {
+                whereConditions.push("DI_REF = @DI_REF");
+                queryParams.DI_REF = { type: sql.NVarChar, value: DI_REF.trim() };
+            }
+            if (startDate && startDate.trim() !== "") {
+                whereConditions.push("DI_DATE >= @startDate");
+                queryParams.startDate = { type: sql.Date, value: startDate };
+            }
+            if (endDate && endDate.trim() !== "") {
+                whereConditions.push("DI_DATE <= @endDate");
+                queryParams.endDate = { type: sql.Date, value: endDate };
+            }
+            // เพิ่ม customerName ถ้า table นี้มี column AR_NAME หรือเทียบเท่า
+            if (customerName && customerName.trim() !== "") {
+                 // whereConditions.push("AR_NAME LIKE @customerName + '%'"); // สมมติว่ามีคอลัมน์ AR_NAME
+                 // queryParams.customerName = { type: sql.NVarChar, value: customerName.trim() };
+            }
+             // CHECKROUND ไม่น่าจะใช้กับ preparationRecords ตามโครงสร้างเดิม
+
+            } else if (reportType === 'stocksummary') {
+            baseQuery = `
+                SELECT
+                    DI_REF, DI_DATE, SKU_CODE, SKU_NAME, ICCAT_CODE,
+                    ICCAT_NAME AS ProductCategoryName, TOTAL_SKU_QTY AS SoldQty,
+                    TOTAL_CR_QTY AS ReceivedQty, PREPARE_REMAINING AS PendingQty,
+                    LATEST_PREPARE_QTY, STATUS, AR_NAME, SKU_ICDEPT
+                FROM Stock_Summary
+            `;
+            // มี WHERE พื้นฐาน
+            whereConditions.push("STATUS = 1");
+            hasBaseWhere = true;
+
+             // เพิ่มเงื่อนไข Filter สำหรับ stocksummary
+            if (DI_REF && DI_REF.trim() !== "") {
+                whereConditions.push("DI_REF = @DI_REF");
+                queryParams.DI_REF = { type: sql.NVarChar, value: DI_REF.trim() };
+            }
+             if (CHECKROUND && CHECKROUND.toString().trim() !== "") {
+                 // สมมติว่า Stock_Summary มีคอลัมน์ CHECKROUND (ถ้าไม่มี ให้เอาส่วนนี้ออก)
+                whereConditions.push("CHECKROUND = @CHECKROUND");
+                queryParams.CHECKROUND = { type: sql.Int, value: parseInt(CHECKROUND, 10) };
+            }
+            if (startDate && startDate.trim() !== "") {
+                whereConditions.push("DI_DATE >= @startDate"); // ใช้ DI_DATE
+                queryParams.startDate = { type: sql.Date, value: startDate };
+            }
+            if (endDate && endDate.trim() !== "") {
+                whereConditions.push("DI_DATE <= @endDate"); // ใช้ DI_DATE
+                queryParams.endDate = { type: sql.Date, value: endDate };
+            }
+            if (customerName && customerName.trim() !== "") {
+                whereConditions.push("AR_NAME LIKE @customerName + '%'");
+                queryParams.customerName = { type: sql.NVarChar, value: customerName.trim() };
+            }  
+          } else if (reportType === 'stock') {
+            // --- จัดการ reportType 'stock' ผ่าน endpoint นี้ (ถ้าต้องการ) ---
+            baseQuery = "SELECT * FROM stock"; // ปรับ SELECT columns ตามต้องการ
+            hasBaseWhere = false; // หรือ true ถ้ามีเงื่อนไขพื้นฐาน
+
+            // เพิ่มเงื่อนไข Filter สำหรับ stock (ปรับชื่อคอลัมน์ตามตาราง stock)
+            if (DI_REF && DI_REF.trim() !== "") {
+                whereConditions.push("DI_REF = @DI_REF"); // สมมติชื่อคอลัมน์ DI_REF
+                queryParams.DI_REF = { type: sql.NVarChar, value: DI_REF.trim() };
+            }
+            if (CHECKROUND && CHECKROUND.toString().trim() !== "") {
+                whereConditions.push("CHECKROUND = @CHECKROUND"); // สมมติชื่อคอลัมน์ CHECKROUND
+                queryParams.CHECKROUND = { type: sql.Int, value: parseInt(CHECKROUND, 10) };
+            }
+            // เพิ่มเงื่อนไขวันที่ startDate, endDate (ถ้ามีคอลัมน์วันที่ในตาราง stock)
+            // if (startDate && startDate.trim() !== "") {
+            //     whereConditions.push("YourDateColumn >= @startDate");
+            //     queryParams.startDate = { type: sql.Date, value: startDate };
+            // }
+            // if (endDate && endDate.trim() !== "") {
+            //     whereConditions.push("YourDateColumn <= @endDate");
+            //     queryParams.endDate = { type: sql.Date, value: endDate };
+            // }
+            // เพิ่ม customerName (ถ้ามีคอลัมน์ชื่อลูกค้าในตาราง stock)
+            // if (customerName && customerName.trim() !== "") {
+            //    whereConditions.push("YourCustomerNameColumn LIKE @customerName + '%'");
+            //    queryParams.customerName = { type: sql.NVarChar, value: customerName.trim() };
+            // }
+            // --- จบการจัดการ 'stock' ---
+
+       } else {
+           // ถ้า reportType ไม่ถูกต้อง
+           return res.status(400).json({ success: false, message: "Invalid report type" });
+       }  
+          
+
+      // ถ้ามีค่า DI_REF (เลขที่เอกสาร) ให้เพิ่มเงื่อนไขค้นหา
+      // if(DI_REF && DI_REF.trim() !== ""){
+      //     whereClauses.push("DI_REF = @DI_REF");
+      // }
+
+      // ถ้ามีค่า CHECKROUND (รอบตรวจจ่าย) สามารถเพิ่มเงื่อนไขได้เช่นกัน
+      // if(CHECKROUND && CHECKROUND.toString().trim() !== ""){
+      //     whereClauses.push("CHECKROUND = @CHECKROUND");
+      // }
+
+      // ถ้ามีเงื่อนไข ให้ต่อเข้าไปกับ query
+      // if(whereClauses.length > 0){
+      //     query += " WHERE " + whereClauses.join(" AND ");
+      // }
+      // if(whereClauses.length > 0 && reportType !== 'stocksummary'){ // ✅ ไม่ต้องใส่ WHERE สำหรับ stocksummary เพราะมี STATUS=1 อยู่แล้ว
+      //   query += " WHERE " + whereClauses.join(" AND ");
+      // } else if (whereClauses.length > 0 && reportType === 'stocksummary') {
+      //     query += " AND " + whereClauses.join(" AND "); // ต่อ WHERE clause เพิ่มเติมสำหรับ stocksummary
+      // }
+
+      // 3. สร้าง Query String สุดท้ายโดยรวมเงื่อนไข WHERE/AND
+      let finalQuery = baseQuery;
+      if (whereConditions.length > 0) {
+          if (hasBaseWhere) {
+              // มี WHERE พื้นฐานแล้ว (เช่น STATUS=1)
+              // เอาเฉพาะเงื่อนไข filter ที่เพิ่มเข้ามา (ไม่รวมเงื่อนไขพื้นฐานอันแรก)
+              const filterConditions = whereConditions.slice(1);
+               finalQuery += " WHERE " + whereConditions[0]; // ต่อ WHERE + เงื่อนไขพื้นฐาน
+              if (filterConditions.length > 0) {
+                  finalQuery += " AND " + filterConditions.join(" AND "); // ต่อ AND + เงื่อนไข filter อื่นๆ
+              }
+          } else {
+              // ไม่มี WHERE พื้นฐาน ให้ใช้ WHERE กับเงื่อนไขแรก และ AND กับที่เหลือ
+              finalQuery += " WHERE " + whereConditions.join(" AND ");
+          }
+      }
+
+      // 4. Bind Parameters ที่เก็บไว้ใน queryParams
+      for (const key in queryParams) {
+          requestObj.input(key, queryParams[key].type, queryParams[key].value);
+      }
+
+      // 5. Execute Query และส่งผลลัพธ์
+      console.log("Executing Query:", finalQuery); // แสดง query ที่จะรันใน console (สำหรับ debug)
+      console.log("With Params:", queryParams); // แสดง parameters ที่ bind
+      const result = await requestObj.query(finalQuery);
+      res.json({ success: true, data: result.recordset });
+
+  } catch (error) {
+      console.error("API Error in /api/get-report:", error);
+      res.status(500).json({ success: false, message: "Database error", error: error.message });
   }
 });
+
 app.post('/api/update-preparation', async (req, res) => {
   console.log("Request Body:", req.body); // เพิ่มบรรทัดนี้
     try {

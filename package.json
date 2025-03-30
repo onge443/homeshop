@@ -17,6 +17,7 @@
     "html5-qrcode": "^2.3.8",
     "mssql": "^11.0.1",
     "node-localstorage": "^3.0.5",
-    "startbootstrap-sb-admin-2": "^4.1.4"
+    "startbootstrap-sb-admin-2": "^4.1.4",
+    "xlsx": "^0.18.5"
   }
 }
