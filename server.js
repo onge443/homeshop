@@ -1732,6 +1732,7 @@ app.post("/api/update-stock-transaction", async (req, res) => {
 //   }
 // });
 app.post('/api/get-report', async (req, res) => {
+  const draw = req.body.draw || 0;
   try {
       const { reportType, DI_REF, CHECKROUND, startDate, endDate, customerName } = req.body;
       const pool = await getPool("TestOng");
@@ -1825,27 +1826,98 @@ app.post('/api/get-report', async (req, res) => {
                 whereConditions.push("CHECKROUND = @CHECKROUND"); // สมมติชื่อคอลัมน์ CHECKROUND
                 queryParams.CHECKROUND = { type: sql.Int, value: parseInt(CHECKROUND, 10) };
             }
-            // เพิ่มเงื่อนไขวันที่ startDate, endDate (ถ้ามีคอลัมน์วันที่ในตาราง stock)
-            // if (startDate && startDate.trim() !== "") {
-            //     whereConditions.push("YourDateColumn >= @startDate");
-            //     queryParams.startDate = { type: sql.Date, value: startDate };
-            // }
-            // if (endDate && endDate.trim() !== "") {
-            //     whereConditions.push("YourDateColumn <= @endDate");
-            //     queryParams.endDate = { type: sql.Date, value: endDate };
-            // }
-            // เพิ่ม customerName (ถ้ามีคอลัมน์ชื่อลูกค้าในตาราง stock)
-            // if (customerName && customerName.trim() !== "") {
-            //    whereConditions.push("YourCustomerNameColumn LIKE @customerName + '%'");
-            //    queryParams.customerName = { type: sql.NVarChar, value: customerName.trim() };
-            // }
-            // --- จบการจัดการ 'stock' ---
+          }
+          else if (reportType === 'all_stock_summary') {
+            // --- ตรวจสอบ Parameter วันที่ ที่บังคับ ---
+            // ดึงค่า startDate และ endDate จาก req.body อีกครั้งใน Scope นี้
+            const { startDate, endDate } = req.body;
+            if (!startDate || !endDate || startDate.trim() === '' || endDate.trim() === '') {
+                console.log("⚠️ Missing required date range for all_stock_summary report."); // ใช้ writeLog ถ้าประกาศไว้แล้ว หรือ console.log
+                 // ส่ง Response กลับทันที พร้อม draw ถ้ามี
+                 return res.status(400).json({
+                     success: false,
+                     message: "กรุณาเลือกช่วงวันที่เริ่มต้นและสิ้นสุดสำหรับรายงานทั้งหมด",
+                     draw: parseInt(draw, 10),
+                     recordsTotal: 0, recordsFiltered: 0, data: [] // ส่งค่า Default กลับไป
+                 });
+            }
+            // ------------------------------------
 
-       } else {
-           // ถ้า reportType ไม่ถูกต้อง
-           return res.status(400).json({ success: false, message: "Invalid report type" });
-       }  
-          
+            // --- กำหนดคอลัมน์และ Query (ไม่มี Pagination) ---
+            // *** ปรับแก้ SELECT list ให้ตรงกับที่ Frontend (renderAllStockSummaryReportTable) ต้องการแสดงผล ***
+            const selectColumns = `
+                ID, DI_REF, CONVERT(VARCHAR, DI_DATE, 105) AS DI_DATE_STR, SKU_CODE, SKU_NAME,
+                ICCAT_CODE, ICCAT_NAME, AR_NAME, TOTAL_SKU_QTY, TOTAL_CR_QTY,
+                REMAINING_QTY, LATEST_PREPARE_QTY, PREPARE_REMAINING, STATUS,
+                CONVERT(VARCHAR, UPDATE_DATE, 120) AS UPDATE_DATE_STR, UPDATE_BY, BRANCH_CODE
+            `;
+            const baseQuery = `FROM Stock_Summary`;
+            const orderByClause = "ORDER BY UPDATE_DATE DESC, ID DESC"; // <<< เลือก ORDER BY ที่ต้องการ
+
+            // --- สร้างเงื่อนไข WHERE (วันที่เป็น Mandatory) ---
+            whereConditions = []; // เริ่ม Array ใหม่
+            queryParams = {};     // เริ่ม Object ใหม่
+
+            // ใส่เงื่อนไขวันที่ (บังคับ)
+            whereConditions.push("DI_DATE >= @startDate");
+            queryParams.startDate = { type: sql.Date, value: startDate }; // ใช้ startDate ที่ดึงมาตอนต้น
+            whereConditions.push("DI_DATE <= @endDate");
+            queryParams.endDate = { type: sql.Date, value: endDate };   // ใช้ endDate ที่ดึงมาตอนต้น
+
+            // เพิ่ม Filter อื่นๆ (Optional - Copy มาจากเดิม)
+            if (DI_REF && DI_REF.trim() !== "") { whereConditions.push("DI_REF = @DI_REF"); queryParams.DI_REF = { type: sql.NVarChar, value: DI_REF.trim() }; }
+            if (customerName && customerName.trim() !== "") { whereConditions.push("AR_NAME LIKE @customerName + '%'"); queryParams.customerName = { type: sql.NVarChar, value: customerName.trim() }; }
+
+            // --- เพิ่ม Filter Category / Status ถ้าต้องการ ---
+             let statusValue = null;
+             if (req.body.status && req.body.status !== "all") { statusValue = parseInt(req.body.status, 10); }
+             if (statusValue !== null) { whereConditions.push("STATUS = @Status"); queryParams.Status = { type: sql.Int, value: statusValue }; }
+
+             if (req.body.category && req.body.category !== "all") {
+                 whereConditions.push("SUBSTRING(ICCAT_CODE, 1, 1) = @Category");
+                 queryParams.Category = { type: sql.NVarChar, value: req.body.category };
+             } else if (req.body.category === 'all' || !req.body.category) { // ถ้าเป็น all หรือไม่ได้ส่งมา อาจจะใช้เงื่อนไขเดิม
+                 whereConditions.push("LEFT(ICCAT_CODE, 1) IN ('A','K','R')"); // <<< ตรวจสอบว่าเงื่อนไขนี้ถูกต้องสำหรับ Report นี้หรือไม่? หรือไม่ต้องใส่เลย?
+             }
+            // ---------------------------------------------
+
+            const whereClauseString = `WHERE ${whereConditions.join(" AND ")}`;
+            // -----------------------------------------
+
+            // --- สร้าง Final Query (ไม่มี Pagination) ---
+            const finalQuery = `SELECT ${selectColumns} ${baseQuery} ${whereClauseString} ${orderByClause}`;
+            // ------------------------------------------
+
+            // --- Bind Parameters & Execute ---
+            const dataRequest = pool.request();
+            for (const key in queryParams) {
+                dataRequest.input(key, queryParams[key].type, queryParams[key].value);
+            }
+
+            console.log("Executing Query:", finalQuery); // Debug
+            console.log("With Params:", queryParams); // Debug
+
+            const dataResult = await dataRequest.query(finalQuery);
+            // --------------------------------
+
+            // --- ส่งผลลัพธ์กลับ (ไม่มี Pagination Info) ---
+             if (!res.headersSent) {
+                 res.json({
+                     success: true,
+                     // draw: parseInt(draw, 10), // อาจจะไม่ต้องส่ง draw ถ้า Frontend ไม่ได้ใช้แล้ว
+                     // recordsTotal: dataResult.recordset.length, // ส่งจำนวนที่ Query ได้จริง
+                     // recordsFiltered: dataResult.recordset.length, // เท่ากันเพราะไม่มี Pagination
+                     data: dataResult.recordset
+                 });
+             }
+             return; // << จบการทำงานของส่วนนี้
+            // ---------------------
+
+          } // --- จบ else if ('all_stock_summary') ---
+
+          else { // กรณี reportType ไม่ตรงกับที่รองรับ
+            return res.status(400).json({ success: false, message: "Invalid report type" });
+          }          
 
       // ถ้ามีค่า DI_REF (เลขที่เอกสาร) ให้เพิ่มเงื่อนไขค้นหา
       // if(DI_REF && DI_REF.trim() !== ""){

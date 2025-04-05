@@ -92,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         showRound: true // ✅ เพิ่ม showRound สำหรับรายงานคงค้าง
                     })
                 })
+                
                 .then(response => response.json())
                 .then(result => {
                     if(result.success && result.data && result.data.length > 0) {
@@ -101,7 +102,43 @@ document.addEventListener("DOMContentLoaded", () => {
                             reportContainer.innerHTML = "<p>ไม่มีข้อมูล</p>";
                         }
                     }
+                    
                 })
+            }
+                else if(reportType === 'all_stock_summary') { // <<< แยกเงื่อนไขออกมา
+                    if (!startDate || !endDate || startDate.trim() === '' || endDate.trim() === '') {
+                        alert("สำหรับรายงานทั้งหมด กรุณาเลือกช่วงวันที่เริ่มต้นและสิ้นสุด");
+                        if (reportContainer) {
+                            reportContainer.innerHTML = "<p>กรุณาเลือกช่วงวันที่</p>";
+                        }
+                        return; // <<< สำคัญ: หยุดการทำงานต่อ ไม่ต้อง fetch
+                    }
+                    const reportParams = {
+                        reportType: 'all_stock_summary',
+                        DI_REF: DI_REF,
+                        startDate: startDate, // ใช้ค่าที่อ่านมาแล้ว
+                        endDate: endDate,   // ใช้ค่าที่อ่านมาแล้ว
+                        customerName: customerName || null,
+                        branch: branch     // ใช้ค่าที่อ่านมาแล้ว
+                    };
+                    fetch('/api/get-report', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(reportParams)
+                    })
+                    
+                    .then(response => response.json())
+                    .then(result => {
+                     if(result.success && result.data && result.data.length > 0) {
+                         renderAllStockSummaryReportTable(result.data); // เรียกใช้ Render ใหม่
+                     } else {
+                         if(reportContainer) {
+                             reportContainer.innerHTML = "<p>ไม่มีข้อมูลตามเงื่อนไขที่เลือก</p>";
+                         }
+                         if (!result.success) { console.warn("API Error:", result.message); }
+                     }
+                 })
+
                 .catch(err => {
                     console.error(err);
                     if(reportContainer) {
@@ -300,6 +337,76 @@ function renderStockSummaryTable(data) {
 //                 enableRowEditing1(row);
 //             });
 //         });
+}
+// --- ฟังก์ชันใหม่สำหรับ Render "รายงานทั้งหมด" (ข้อมูลจาก Stock_Summary) ---
+function renderAllStockSummaryReportTable(data) {
+    // กำหนด Header ของตาราง - *** ปรับแก้ตามคอลัมน์ที่คุณต้องการแสดง ***
+    const headers = [
+        "ID", "เลขที่เอกสาร", "วันที่เอกสาร", "ชื่อลูกค้า", "รหัสสินค้า", "ชื่อสินค้า",
+        "หมวดหมู่สินค้า", "จำนวนขาย", "จำนวนรับ", "จำนวนคงเหลือ", "จำนวนจัดล่าสุด",
+        "สถานะ", "เวลาอัปเดต", "ผู้อัปเดต"
+        // เพิ่ม Header อื่นๆ ตรงนี้
+    ];
+
+    let html = `
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    ${headers.map(header => `<th>${header}</th>`).join('')}
+                </tr>
+            </thead>
+            <tbody id="reportTableBody">
+    `;
+
+    if (!data || data.length === 0) {
+        // แสดงข้อความเมื่อไม่มีข้อมูล
+        html += `<tr><td colspan="${headers.length}" class="text-center">ไม่มีข้อมูล</td></tr>`;
+    } else {
+        data.forEach((row, index) => {
+            // แปลงค่า Status เป็นข้อความ
+            const statusText = statusMapping[row.STATUS] || (row.STATUS !== null ? row.STATUS : '-');
+
+            // Format วันที่ - *** ใช้ชื่อ Property ที่ Backend ส่งมาให้ถูกต้อง ***
+            // สมมติ Backend ส่ง Date มาเป็น ISO String หรือ Date Object และตั้ง Alias ไว้
+            const displayDate = row.DI_DATE_STR || (row.DI_DATE ? new Date(row.DI_DATE).toLocaleDateString('th-TH') : '-');
+            const displayUpdateDate = row.UPDATE_DATE_STR || (row.UPDATE_DATE ? new Date(row.UPDATE_DATE).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-');
+
+            html += `
+                <tr>
+                    
+                    <td>${row.ID ?? '-'}</td>
+                    <td>${row.DI_REF ?? '-'}</td>
+                    <td>${displayDate}</td>
+                    <td>${row.AR_NAME ?? '-'}</td>
+                    <td>${row.SKU_CODE ?? '-'}</td>
+                    <td>${row.SKU_NAME ?? '-'}</td>
+                    <td>${row.ICCAT_NAME ?? '-'} (${row.ICCAT_CODE ?? '-'})</td> 
+                    <td>${row.TOTAL_SKU_QTY ?? '-'}</td>
+                    <td>${row.TOTAL_CR_QTY ?? '-'}</td>
+                    <td>${row.REMAINING_QTY ?? '-'}</td>
+                    <td>${row.LATEST_PREPARE_QTY ?? '-'}</td>
+                    <td>${statusText}</td>
+                    <td>${displayUpdateDate}</td>
+                    <td>${row.UPDATE_BY ?? '-'}</td>
+                    
+                </tr>
+            `;
+        });
+    }
+
+    html += `
+            </tbody>
+        </table>
+        
+    `;
+
+    // แสดงผลใน reportContainer
+    const reportContainer = document.getElementById('reportContainer');
+    if (reportContainer) {
+        reportContainer.innerHTML = html;
+    }
+    // รายงานนี้อาจจะไม่ต้องมีปุ่ม Edit ? ถ้าต้องการให้มี ก็เรียก attachEditListeners(); หลังบรรทัดนี้
+    // attachEditListeners();
 }
 
 function enableRowEditing1(row) {
