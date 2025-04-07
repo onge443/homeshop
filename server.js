@@ -1828,21 +1828,6 @@ app.post('/api/get-report', async (req, res) => {
             }
           }
           else if (reportType === 'all_stock_summary') {
-            // --- ตรวจสอบ Parameter วันที่ ที่บังคับ ---
-            // ดึงค่า startDate และ endDate จาก req.body อีกครั้งใน Scope นี้
-            const { startDate, endDate } = req.body;
-            if (!startDate || !endDate || startDate.trim() === '' || endDate.trim() === '') {
-                console.log("⚠️ Missing required date range for all_stock_summary report."); // ใช้ writeLog ถ้าประกาศไว้แล้ว หรือ console.log
-                 // ส่ง Response กลับทันที พร้อม draw ถ้ามี
-                 return res.status(400).json({
-                     success: false,
-                     message: "กรุณาเลือกช่วงวันที่เริ่มต้นและสิ้นสุดสำหรับรายงานทั้งหมด",
-                     draw: parseInt(draw, 10),
-                     recordsTotal: 0, recordsFiltered: 0, data: [] // ส่งค่า Default กลับไป
-                 });
-            }
-            // ------------------------------------
-
             // --- กำหนดคอลัมน์และ Query (ไม่มี Pagination) ---
             // *** ปรับแก้ SELECT list ให้ตรงกับที่ Frontend (renderAllStockSummaryReportTable) ต้องการแสดงผล ***
             const selectColumns = `
@@ -1855,19 +1840,25 @@ app.post('/api/get-report', async (req, res) => {
             const orderByClause = "ORDER BY UPDATE_DATE DESC, ID DESC"; // <<< เลือก ORDER BY ที่ต้องการ
 
             // --- สร้างเงื่อนไข WHERE (วันที่เป็น Mandatory) ---
-            whereConditions = []; // เริ่ม Array ใหม่
-            queryParams = {};     // เริ่ม Object ใหม่
-
-            // ใส่เงื่อนไขวันที่ (บังคับ)
-            whereConditions.push("DI_DATE >= @startDate");
-            queryParams.startDate = { type: sql.Date, value: startDate }; // ใช้ startDate ที่ดึงมาตอนต้น
-            whereConditions.push("DI_DATE <= @endDate");
-            queryParams.endDate = { type: sql.Date, value: endDate };   // ใช้ endDate ที่ดึงมาตอนต้น
+            whereConditions = [];
+            queryParams = {};
+            hasBaseWhere = false; // ตั้งค่า Default
 
             // เพิ่ม Filter อื่นๆ (Optional - Copy มาจากเดิม)
             if (DI_REF && DI_REF.trim() !== "") { whereConditions.push("DI_REF = @DI_REF"); queryParams.DI_REF = { type: sql.NVarChar, value: DI_REF.trim() }; }
             if (customerName && customerName.trim() !== "") { whereConditions.push("AR_NAME LIKE @customerName + '%'"); queryParams.customerName = { type: sql.NVarChar, value: customerName.trim() }; }
-
+             // *** เพิ่มเงื่อนไขวันที่ *ถ้า* มีการส่งค่ามา ***
+            // ดึง startDate, endDate จาก req.body อีกครั้ง หรือใช้ตัวที่ประกาศไว้ตอนต้น function
+            const currentStartDate = req.body.startDate;
+            const currentEndDate = req.body.endDate;
+            if (currentStartDate && currentStartDate.trim() !== "") {
+                whereConditions.push("DI_DATE >= @startDate");
+                queryParams.startDate = { type: sql.Date, value: currentStartDate };
+            }
+            if (currentEndDate && currentEndDate.trim() !== "") {
+                whereConditions.push("DI_DATE <= @endDate");
+                queryParams.endDate = { type: sql.Date, value: currentEndDate };
+            }
             // --- เพิ่ม Filter Category / Status ถ้าต้องการ ---
              let statusValue = null;
              if (req.body.status && req.body.status !== "all") { statusValue = parseInt(req.body.status, 10); }

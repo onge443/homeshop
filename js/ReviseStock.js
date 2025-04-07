@@ -106,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
             }
                 else if(reportType === 'all_stock_summary') { // <<< แยกเงื่อนไขออกมา
-                    if (!startDate || !endDate || startDate.trim() === '' || endDate.trim() === '') {
+                    if ((!startDate || !endDate) && !DI_REF_input && !customerName) {
                         alert("สำหรับรายงานทั้งหมด กรุณาเลือกช่วงวันที่เริ่มต้นและสิ้นสุด");
                         if (reportContainer) {
                             reportContainer.innerHTML = "<p>กรุณาเลือกช่วงวันที่</p>";
@@ -116,8 +116,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     const reportParams = {
                         reportType: 'all_stock_summary',
                         DI_REF: DI_REF,
-                        startDate: startDate, // ใช้ค่าที่อ่านมาแล้ว
-                        endDate: endDate,   // ใช้ค่าที่อ่านมาแล้ว
+                        startDate: startDate || null, // ใช้ค่าที่อ่านมาแล้ว
+                        endDate: endDate || null,   // ใช้ค่าที่อ่านมาแล้ว
                         customerName: customerName || null,
                         branch: branch     // ใช้ค่าที่อ่านมาแล้ว
                     };
