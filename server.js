@@ -1091,220 +1091,401 @@ app.get('/api/status-list', async (req, res) => {
 //     res.status(500).json({ success: false, message: "Database error", error: error.message });
 //   }
 // });  
+// app.post('/api/save-preparation', async (req, res) => {
+//   // ถ้า req.body เป็นอาร์เรย์ ให้ใช้เป็น updates array ถ้าไม่ใช่ ให้แปลงเป็น array เดียว
+//   const updates = Array.isArray(req.body) ? req.body : [req.body];
+
+//   // ตรวจสอบข้อมูลแต่ละ record
+//   for (const update of updates) {
+//       if (!update.DI_REF || !update.ProductCode || update.PreparedQty === undefined || !update.branch) {
+//           return res.status(400).json({ success: false, message: "Missing required fields (DI_REF, ProductCode, PreparedQty, branch) in one or more records" });
+//       }
+//   }
+
+//   const lockKey = updates[0].DI_REF;
+//   let transaction;
+//   const maxRetries = 3;
+//   let retryCount = 0;
+
+//   while (retryCount < maxRetries) {
+//       try {
+//           const pool = await getPool("TestOng");
+//           transaction = new sql.Transaction(pool);
+//           await transaction.begin();
+
+//           for (const update of updates) {
+//               const { DI_REF, ProductCode, PreparedQty, Username, branch } = update;
+//               const PreparedBy = Username || "ระบบ";
+//               const preparedQtyNumber = Number(PreparedQty);
+
+//               // ตรวจสอบว่า PreparedQty เป็น 0 หรือค่าว่างหรือไม่
+//               if (preparedQtyNumber === 0 || PreparedQty === "") {
+//                   // ถ้า PreparedQty เป็น 0 หรือค่าว่าง ให้อัปเดต STATUS เป็น 1 และข้ามการเตรียมสินค้า
+//                   const updateStatusRequest = new sql.Request(transaction);
+//                   updateStatusRequest.timeout = 60000;
+//                   updateStatusRequest.input('DI_REF', sql.NVarChar, DI_REF);
+//                   updateStatusRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+//                   updateStatusRequest.input('BRANCH_CODE', sql.VarChar, branch);
+//                   updateStatusRequest.input('STATUS', sql.NVarChar, '1'); // Set status to 1
+//                   updateStatusRequest.input('UPDATE_BY', sql.NVarChar, PreparedBy);
+//                   await updateStatusRequest.query(`
+//                       UPDATE stock_summary
+//                       SET
+//                           STATUS = @STATUS,
+//                           UPDATE_DATE = GETDATE(),
+//                           UPDATE_BY = @UPDATE_BY
+//                       WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE;
+//                   `);
+//                   console.log(`Stock summary status updated to 1 for DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch}`);
+//                   continue; // ข้ามไปยัง update record ถัดไป
+//               }
+
+//               // ถ้า PreparedQty ไม่เป็น 0 หรือค่าว่าง ให้ทำ logic การเตรียมสินค้าตามเดิม
+//               // 1. ดึงข้อมูลที่จำเป็นทั้งหมดจาก stock_summary ในครั้งเดียว
+//               const stockRequest = new sql.Request(transaction);
+//               stockRequest.timeout = 30000;
+//               stockRequest.input('DI_REF', sql.NVarChar, DI_REF);
+//               stockRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+//               stockRequest.input('BRANCH_CODE', sql.VarChar, branch);
+//               const stockQuery = await stockRequest.query(`
+//                   SELECT
+//                       STATUS,
+//                       PREPARE_REMAINING,
+//                       LATEST_PREPARE_QTY,
+//                       TOTAL_SKU_QTY,
+//                       ICCAT_CODE,
+//                       ICCAT_NAME,
+//                       DI_DATE
+//                   FROM stock_summary
+//                   WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE
+//               `);
+
+//               if (stockQuery.recordset.length === 0) {
+//                   throw new Error(`❌ ไม่พบข้อมูลใน stock_summary สำหรับ DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch}`);
+//               }
+
+//               const stockData = stockQuery.recordset[0];
+//               const {
+//                   STATUS: currentStatus,
+//                   PREPARE_REMAINING: previousPrepared,
+//                   LATEST_PREPARE_QTY: previousPreparedQty,
+//                   TOTAL_SKU_QTY: total,
+//                   ICCAT_CODE,
+//                   ICCAT_NAME,
+//                   DI_DATE
+//               } = stockData;
+
+//               // ตรวจสอบสถานะ
+//               if (currentStatus == 4 || currentStatus == 6) {
+//                   return res.status(400).json({
+//                       success: false,
+//                       message: `จัดเตรียมเรียบร้อยแล้ว! (DI_REF: ${DI_REF})`
+//                   });
+//               }
+
+//               const remainingBeforeCalculation = Number(total) - Number(previousPreparedQty);
+//               const newTotalPrepared = Number(previousPreparedQty) + preparedQtyNumber;
+
+//               // ตรวจสอบว่าจำนวนที่จัดเตรียมเกินจำนวนที่เหลืออยู่หรือไม่
+//               if (preparedQtyNumber > remainingBeforeCalculation) {
+//                   return res.status(400).json({
+//                       success: false,
+//                       message: `ไม่สามารถบันทึกข้อมูลได้ เนื่องจากจำนวนที่จัดเตรียม (${preparedQtyNumber}) มากกว่าจำนวนที่เหลืออยู่ (${remainingBeforeCalculation})`
+//                   });
+//               }
+
+//               const remain = Number(total) - newTotalPrepared;
+//               let newStatus = "3"; // ตั้งค่าเริ่มต้นเป็น "กำลังจัดเตรียม"
+
+//               if (remain === 0) {
+//                   newStatus = "4"; // ถ้า PREPARE_REMAINING เป็น 0 ให้เปลี่ยนสถานะเป็น "จัดเตรียมเรียบร้อย"
+//               }
+
+//               // 2. อัปเดต stock_summary
+//               const updateRequest = new sql.Request(transaction);
+//               updateRequest.timeout = 30000;
+//               updateRequest.input('DI_REF', sql.NVarChar, DI_REF);
+//               updateRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+//               updateRequest.input('LATEST_PREPARE_QTY', sql.Decimal(18, 2), newTotalPrepared);
+//               updateRequest.input('PREPARE_REMAINING', sql.Decimal(18, 2), remain);
+//               updateRequest.input('UPDATE_BY', sql.NVarChar, PreparedBy);
+//               updateRequest.input('STATUS', sql.NVarChar, newStatus);
+//               updateRequest.input('BRANCH_CODE', sql.VarChar, branch);
+//               const resultUpdate = await updateRequest.query(`
+//                   UPDATE stock_summary
+//                   SET
+//                       LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY,
+//                       PREPARE_REMAINING = @PREPARE_REMAINING,
+//                       STATUS = @STATUS,
+//                       UPDATE_DATE = GETDATE(),
+//                       UPDATE_BY = @UPDATE_BY
+//                   WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE;
+//                   SELECT @@ROWCOUNT AS affectedRows;
+//               `);
+
+//               if (!resultUpdate.recordset || resultUpdate.recordset.length === 0 || resultUpdate.recordset[0].affectedRows === 0) {
+//                   throw new Error(`❌ ไม่สามารถอัปเดต stock_summary ได้ โปรดตรวจสอบ DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode}, และ BRANCH_CODE: ${branch}`);
+//               }
+//               console.log(`Stock summary updated successfully for DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch} with status =`, newStatus);
+//               // ******** ส่วนที่เพิ่มเข้ามา: ตรวจสอบก่อน Insert ********
+//               const checkExistRequest = new sql.Request(transaction);
+//               checkExistRequest.timeout = 30000;
+//               checkExistRequest.input('DI_REF', sql.NVarChar, DI_REF);
+//               checkExistRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+//               // ใช้เงื่อนไขที่ระบุการกระทำครั้งนี้ให้ชัดเจนที่สุด
+//               checkExistRequest.input('PREPARE_QTY', sql.Decimal(18, 2), preparedQtyNumber); // จำนวนที่เตรียมครั้งนี้
+//               checkExistRequest.input('PreparedBy', sql.NVarChar, PreparedBy); // User ที่เตรียมครั้งนี้
+//               // อาจจะเพิ่มเงื่อนไข Timestamp ถ้าต้องการให้แคบลงมากๆ แต่ต้องระวังเรื่องความเร็ว retry
+//               // checkExistRequest.input('TimestampCheck', sql.DateTime, new Date(Date.now() - 5 * 60 * 1000)); // ตัวอย่าง เช็ค 5 นาทีล่าสุด
+//               const checkResult = await checkExistRequest.query(`
+//                   SELECT COUNT(*) AS RecordCount
+//                   FROM preparationRecords
+//                   WHERE DI_REF = @DI_REF
+//                     AND SKU_CODE = @SKU_CODE
+//                     AND PREPARE_QTY = @PREPARE_QTY
+//                     AND PreparedBy = @PreparedBy;
+                    
+//               `);
+
+//               const recordExists = checkResult.recordset[0].RecordCount > 0;
+
+//               if (!recordExists) {
+//               // 3. บันทึกข้อมูลลง preparationRecords
+//               const insertRequest = new sql.Request(transaction);
+//               insertRequest.timeout = 30000;
+//               insertRequest.input('DI_REF', sql.NVarChar, DI_REF);
+//               insertRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+//               insertRequest.input('ICCAT_CODE', sql.NVarChar, ICCAT_CODE);
+//               insertRequest.input('ICCAT_NAME', sql.NVarChar, ICCAT_NAME);
+//               insertRequest.input('PREPARE_QTY', sql.Decimal(18, 2), preparedQtyNumber);
+//               insertRequest.input('PreparedBy', sql.NVarChar, PreparedBy);
+//               insertRequest.input('Timestamp', sql.DateTime, new Date());
+//               insertRequest.input('Status', sql.NVarChar, newStatus);
+//               insertRequest.input('DI_DATE', sql.DateTime, DI_DATE);
+//               await insertRequest.query(`
+//                   INSERT INTO preparationRecords
+//                   (DI_REF, DI_DATE, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
+//                   VALUES (@DI_REF, @DI_DATE, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
+//               `);
+//               console.log(`Preparation record inserted for DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode}`);
+//             } else {
+//                  console.log(`Skipping insert for DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode} - Record likely exists.`);
+//                  // ไม่ต้องทำอะไร ปล่อยให้ Transaction ดำเนินต่อไป (ถือว่าการ Insert นี้สำเร็จไปแล้วในทางปฏิบัติ)
+//             }
+//             // ******** จบส่วนตรวจสอบก่อน Insert ********
+
+//         } // จบ for loop updates
+
+//           await transaction.commit();
+//           // delete recordLocks[lockKey];
+//           return res.json({ success: true, message: "Preparation saved successfully!" });
+
+//       } catch (error) {
+//           console.error("❌ Error saving preparation (attempt " + (retryCount + 1) + "):", error);
+//           if (transaction && transaction.active) {
+//               await transaction.rollback();
+//           }// จบ while loop retry
+
+//           if (error.code === 'EREQUEST' && error.number === 1205) {
+//               // 1205 คือรหัส error สำหรับ deadlock ใน SQL Server
+//               retryCount++;
+//               console.log("🔄 Deadlock detected, retrying in 1 second...");
+//               await new Promise(resolve => setTimeout(resolve, 1000)); // หน่วงเวลา 1 วินาที
+//               transaction = null; // Reset transaction สำหรับการ retry ครั้งถัดไป
+//           } else {
+//               // เป็น error อื่นที่ไม่ใช่ deadlock ให้ส่ง response กลับไปเลย
+//               if (!res.headersSent) {
+//                   res.status(500).json({ success: false, message: "Database error", error: error.message });
+//               }
+//               return; // ออกจาก loop และ function
+//           }
+//       }
+//   }
+
+//   // หาก retry ครบจำนวนครั้งแล้วยังไม่สำเร็จ
+//   if (!res.headersSent) {
+//       res.status(500).json({ success: false, message: "Failed to save preparation after multiple retries due to deadlocks" });
+//   }
+// });
 app.post('/api/save-preparation', async (req, res) => {
   // ถ้า req.body เป็นอาร์เรย์ ให้ใช้เป็น updates array ถ้าไม่ใช่ ให้แปลงเป็น array เดียว
   const updates = Array.isArray(req.body) ? req.body : [req.body];
 
-  // ตรวจสอบข้อมูลแต่ละ record
+  // ตรวจสอบข้อมูลแต่ละ record (ทำครั้งเดียวก่อนเริ่ม)
   for (const update of updates) {
       if (!update.DI_REF || !update.ProductCode || update.PreparedQty === undefined || !update.branch) {
           return res.status(400).json({ success: false, message: "Missing required fields (DI_REF, ProductCode, PreparedQty, branch) in one or more records" });
       }
   }
 
-  const lockKey = updates[0].DI_REF;
-  let transaction;
-  const maxRetries = 3;
-  let retryCount = 0;
+  let pool; // ประกาศ pool ไว้นอก loop
+  let overallSuccess = true; // ตัวแปรติดตามว่าทุกรายการสำเร็จหรือไม่
+  let errorMessages = []; // ตัวแปรเก็บข้อผิดพลาดของแต่ละรายการ (ถ้ามี)
 
-  while (retryCount < maxRetries) {
-      try {
-          const pool = await getPool("TestOng");
-          transaction = new sql.Transaction(pool);
-          await transaction.begin();
+  try {
+      pool = await getPool("TestOng"); // เชื่อมต่อ Pool ครั้งเดียว
 
-          for (const update of updates) {
-              const { DI_REF, ProductCode, PreparedQty, Username, branch } = update;
-              const PreparedBy = Username || "ระบบ";
-              const preparedQtyNumber = Number(PreparedQty);
+      // วน Loop ประมวลผลแต่ละรายการใน updates array
+      for (const update of updates) {
+          let itemTransaction; // Transaction สำหรับรายการนี้โดยเฉพาะ
+          const maxRetriesForItem = 3; // จำนวนครั้งสูงสุดที่จะ Retry ต่อรายการ
+          let retryCountForItem = 0;
+          let itemProcessed = false; // Flag ว่ารายการนี้ประมวลผลสำเร็จหรือยัง
 
-              // ตรวจสอบว่า PreparedQty เป็น 0 หรือค่าว่างหรือไม่
-              if (preparedQtyNumber === 0 || PreparedQty === "") {
-                  // ถ้า PreparedQty เป็น 0 หรือค่าว่าง ให้อัปเดต STATUS เป็น 1 และข้ามการเตรียมสินค้า
-                  const updateStatusRequest = new sql.Request(transaction);
-                  updateStatusRequest.timeout = 60000;
-                  updateStatusRequest.input('DI_REF', sql.NVarChar, DI_REF);
-                  updateStatusRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
-                  updateStatusRequest.input('BRANCH_CODE', sql.VarChar, branch);
-                  updateStatusRequest.input('STATUS', sql.NVarChar, '1'); // Set status to 1
-                  updateStatusRequest.input('UPDATE_BY', sql.NVarChar, PreparedBy);
-                  await updateStatusRequest.query(`
-                      UPDATE stock_summary
-                      SET
-                          STATUS = @STATUS,
-                          UPDATE_DATE = GETDATE(),
-                          UPDATE_BY = @UPDATE_BY
-                      WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE;
-                  `);
-                  console.log(`Stock summary status updated to 1 for DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch}`);
-                  continue; // ข้ามไปยัง update record ถัดไป
+          // Retry loop สำหรับรายการนี้
+          while (retryCountForItem < maxRetriesForItem && !itemProcessed) {
+              try {
+                  // --- เริ่ม Transaction สำหรับรายการนี้ ---
+                  itemTransaction = new sql.Transaction(pool);
+                  await itemTransaction.begin();
+                  console.log(`Starting transaction for item DI_REF: ${update.DI_REF}, SKU: ${update.ProductCode} (Attempt ${retryCountForItem + 1})`);
+
+                  const { DI_REF, ProductCode, PreparedQty, Username, branch } = update;
+                  const PreparedBy = Username || "ระบบ";
+                  const preparedQtyNumber = Number(PreparedQty);
+
+                  // ตรวจสอบว่า PreparedQty เป็น 0 หรือค่าว่างหรือไม่
+                  if (preparedQtyNumber === 0 || PreparedQty === "") {
+                      // ถ้าเป็น 0 หรือค่าว่าง -> Update Status ใน stock_summary เป็น 1
+                      const updateStatusRequest = new sql.Request(itemTransaction); // << ใช้ itemTransaction
+                      updateStatusRequest.timeout = 30000; // ตั้ง timeout
+                      updateStatusRequest.input('DI_REF', sql.NVarChar, DI_REF);
+                      updateStatusRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+                      updateStatusRequest.input('BRANCH_CODE', sql.VarChar, branch);
+                      updateStatusRequest.input('STATUS', sql.NVarChar, '1');
+                      updateStatusRequest.input('UPDATE_BY', sql.NVarChar, PreparedBy);
+                      await updateStatusRequest.query(`
+                          UPDATE stock_summary SET STATUS = @STATUS, UPDATE_DATE = GETDATE(), UPDATE_BY = @UPDATE_BY
+                          WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE;
+                      `);
+                      console.log(`Stock summary status updated to 1 for DI_REF: ${DI_REF}, ProductCode: ${ProductCode}`);
+                  } else {
+                      // ถ้า PreparedQty > 0 -> ทำ Logic เดิม (แต่อยู่ใน itemTransaction)
+                      // 1. ดึงข้อมูลจาก stock_summary
+                      const stockRequest = new sql.Request(itemTransaction); // << ใช้ itemTransaction
+                      stockRequest.timeout = 30000;
+                      stockRequest.input('DI_REF', sql.NVarChar, DI_REF);
+                      stockRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+                      stockRequest.input('BRANCH_CODE', sql.VarChar, branch);
+                      const stockQuery = await stockRequest.query(`
+                          SELECT STATUS, PREPARE_REMAINING, LATEST_PREPARE_QTY, TOTAL_SKU_QTY, ICCAT_CODE, ICCAT_NAME, DI_DATE
+                          FROM stock_summary
+                          WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE
+                      `);
+
+                      if (stockQuery.recordset.length === 0) {
+                           // ถ้าไม่เจอข้อมูลใน summary ควรจะ rollback transaction นี้และแจ้ง error
+                          throw new Error(`❌ ไม่พบข้อมูลใน stock_summary สำหรับ DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch}`);
+                      }
+
+                      const stockData = stockQuery.recordset[0];
+                      const { STATUS: currentStatus, PREPARE_REMAINING: previousPrepared, LATEST_PREPARE_QTY: previousPreparedQty, TOTAL_SKU_QTY: total } = stockData; // ดึงเฉพาะที่ต้องใช้คำนวณ
+
+                      // ตรวจสอบสถานะ (เหมือนเดิม)
+                      if (currentStatus == 4 || currentStatus == 6) {
+                           // ไม่ควร throw error แต่ควร log และข้ามไป หรือแจ้งกลับต่างหาก?
+                           // ในที่นี้เลือกที่จะ commit transaction ปัจจุบัน (ที่ยังไม่ได้ทำอะไร) แล้วข้ามไป
+                           console.log(`Item already completed or shipped: DI_REF: ${DI_REF}, SKU: ${ProductCode}. Skipping.`);
+                           // ไม่ต้อง throw error, แค่ commit transaction เปล่าๆ แล้วไปต่อ
+                      } else {
+                          // ตรวจสอบจำนวน (เหมือนเดิม)
+                          const remainingBeforeCalculation = Number(total) - Number(previousPreparedQty);
+                          if (preparedQtyNumber > remainingBeforeCalculation) {
+                              throw new Error(`ไม่สามารถบันทึกข้อมูลได้ เนื่องจากจำนวนที่จัดเตรียม (${preparedQtyNumber}) มากกว่าจำนวนที่เหลืออยู่ (${remainingBeforeCalculation})`);
+                          }
+
+                           // คำนวณค่าใหม่ (เหมือนเดิม)
+                          const newTotalPrepared = Number(previousPreparedQty) + preparedQtyNumber;
+                          const remain = Number(total) - newTotalPrepared;
+                          let newStatus = (remain === 0) ? "4" : "3";
+
+                          // 2. อัปเดต stock_summary (เหมือนเดิม แต่อยู่ใน itemTransaction)
+                          const updateRequest = new sql.Request(itemTransaction); // << ใช้ itemTransaction
+                          updateRequest.timeout = 30000;
+                          updateRequest.input('DI_REF', sql.NVarChar, DI_REF);
+                          updateRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
+                          updateRequest.input('LATEST_PREPARE_QTY', sql.Decimal(18, 2), newTotalPrepared);
+                          updateRequest.input('PREPARE_REMAINING', sql.Decimal(18, 2), remain);
+                          updateRequest.input('UPDATE_BY', sql.NVarChar, PreparedBy);
+                          updateRequest.input('STATUS', sql.NVarChar, newStatus);
+                          updateRequest.input('BRANCH_CODE', sql.VarChar, branch);
+                          const resultUpdate = await updateRequest.query(`
+                              UPDATE stock_summary SET LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY, PREPARE_REMAINING = @PREPARE_REMAINING, STATUS = @STATUS, UPDATE_DATE = GETDATE(), UPDATE_BY = @UPDATE_BY
+                              WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE;
+                              SELECT @@ROWCOUNT AS affectedRows;
+                          `);
+
+                           if (!resultUpdate.recordset || resultUpdate.recordset.length === 0 || resultUpdate.recordset[0].affectedRows === 0) {
+                              throw new Error(`❌ ไม่สามารถอัปเดต stock_summary ได้ โปรดตรวจสอบ DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode}, และ BRANCH_CODE: ${branch}`);
+                          }
+                          console.log(`Stock summary updated successfully for DI_REF: ${DI_REF}, ProductCode: ${ProductCode} with status =`, newStatus);
+                      }
+                  }
+
+                  // --- จบ Logic การประมวลผล 1 รายการ ---
+
+                  await itemTransaction.commit(); // << Commit Transaction ของรายการนี้
+                  itemProcessed = true; // ตั้งค่าว่าทำสำเร็จแล้ว
+                  console.log(`Committed transaction for item DI_REF: ${update.DI_REF}, SKU: ${update.ProductCode}`);
+
+              } catch (error) { // จัดการ Error ของรายการนี้
+                  console.error(`❌ Error processing item DI_REF: ${update.DI_REF}, SKU: ${update.ProductCode} (Attempt ${retryCountForItem + 1}):`, error);
+                  if (itemTransaction && itemTransaction.active) {
+                      try {
+                          await itemTransaction.rollback(); // << Rollback Transaction ของรายการนี้
+                          console.log(`Rolled back transaction for item DI_REF: ${update.DI_REF}, SKU: ${update.ProductCode}`);
+                      } catch (rollbackErr) {
+                           console.error(`Failed to rollback transaction for item DI_REF: ${update.DI_REF}, SKU: ${update.ProductCode}`, rollbackErr);
+                      }
+                  }
+
+                  if (error.code === 'EREQUEST' && error.number === 1205 && retryCountForItem < maxRetriesForItem - 1) {
+                      // Deadlock และยัง Retry ได้
+                      retryCountForItem++;
+                      console.log(`🔄 Deadlock on item, retrying in 1 second...`);
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      itemTransaction = null; // Reset สำหรับ Retry
+                  } else {
+                      // Error อื่น หรือ Retry ครบแล้ว -> หยุด Retry ของรายการนี้, บันทึก Error, ไปรายการถัดไป
+                      overallSuccess = false;
+                      errorMessages.push(`Failed item DI_REF: ${update.DI_REF}, SKU: ${update.ProductCode}. Error: ${error.message}`);
+                      console.error(`Failed permanently for item DI_REF: ${update.DI_REF}, SKU: ${update.ProductCode}.`);
+                      break; // ออกจาก while loop ของรายการนี้
+                  }
+              } finally {
+                   // อาจจะเพิ่มการ release connection ถ้าจำเป็น แต่ปกติ pool จัดการให้
               }
+          } // จบ while retry ต่อรายการ
 
-              // ถ้า PreparedQty ไม่เป็น 0 หรือค่าว่าง ให้ทำ logic การเตรียมสินค้าตามเดิม
-              // 1. ดึงข้อมูลที่จำเป็นทั้งหมดจาก stock_summary ในครั้งเดียว
-              const stockRequest = new sql.Request(transaction);
-              stockRequest.timeout = 60000;
-              stockRequest.input('DI_REF', sql.NVarChar, DI_REF);
-              stockRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
-              stockRequest.input('BRANCH_CODE', sql.VarChar, branch);
-              const stockQuery = await stockRequest.query(`
-                  SELECT
-                      STATUS,
-                      PREPARE_REMAINING,
-                      LATEST_PREPARE_QTY,
-                      TOTAL_SKU_QTY,
-                      ICCAT_CODE,
-                      ICCAT_NAME,
-                      DI_DATE
-                  FROM stock_summary
-                  WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE
-              `);
-
-              if (stockQuery.recordset.length === 0) {
-                  throw new Error(`❌ ไม่พบข้อมูลใน stock_summary สำหรับ DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch}`);
-              }
-
-              const stockData = stockQuery.recordset[0];
-              const {
-                  STATUS: currentStatus,
-                  PREPARE_REMAINING: previousPrepared,
-                  LATEST_PREPARE_QTY: previousPreparedQty,
-                  TOTAL_SKU_QTY: total,
-                  ICCAT_CODE,
-                  ICCAT_NAME,
-                  DI_DATE
-              } = stockData;
-
-              // ตรวจสอบสถานะ
-              if (currentStatus == 4 || currentStatus == 6) {
-                  return res.status(400).json({
-                      success: false,
-                      message: `จัดเตรียมเรียบร้อยแล้ว! (DI_REF: ${DI_REF})`
-                  });
-              }
-
-              const remainingBeforeCalculation = Number(total) - Number(previousPreparedQty);
-              const newTotalPrepared = Number(previousPreparedQty) + preparedQtyNumber;
-
-              // ตรวจสอบว่าจำนวนที่จัดเตรียมเกินจำนวนที่เหลืออยู่หรือไม่
-              if (preparedQtyNumber > remainingBeforeCalculation) {
-                  return res.status(400).json({
-                      success: false,
-                      message: `ไม่สามารถบันทึกข้อมูลได้ เนื่องจากจำนวนที่จัดเตรียม (${preparedQtyNumber}) มากกว่าจำนวนที่เหลืออยู่ (${remainingBeforeCalculation})`
-                  });
-              }
-
-              const remain = Number(total) - newTotalPrepared;
-              let newStatus = "3"; // ตั้งค่าเริ่มต้นเป็น "กำลังจัดเตรียม"
-
-              if (remain === 0) {
-                  newStatus = "4"; // ถ้า PREPARE_REMAINING เป็น 0 ให้เปลี่ยนสถานะเป็น "จัดเตรียมเรียบร้อย"
-              }
-
-              // 2. อัปเดต stock_summary
-              const updateRequest = new sql.Request(transaction);
-              updateRequest.timeout = 60000;
-              updateRequest.input('DI_REF', sql.NVarChar, DI_REF);
-              updateRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
-              updateRequest.input('LATEST_PREPARE_QTY', sql.Decimal(18, 2), newTotalPrepared);
-              updateRequest.input('PREPARE_REMAINING', sql.Decimal(18, 2), remain);
-              updateRequest.input('UPDATE_BY', sql.NVarChar, PreparedBy);
-              updateRequest.input('STATUS', sql.NVarChar, newStatus);
-              updateRequest.input('BRANCH_CODE', sql.VarChar, branch);
-              const resultUpdate = await updateRequest.query(`
-                  UPDATE stock_summary
-                  SET
-                      LATEST_PREPARE_QTY = @LATEST_PREPARE_QTY,
-                      PREPARE_REMAINING = @PREPARE_REMAINING,
-                      STATUS = @STATUS,
-                      UPDATE_DATE = GETDATE(),
-                      UPDATE_BY = @UPDATE_BY
-                  WHERE DI_REF = @DI_REF AND SKU_CODE = @SKU_CODE AND BRANCH_CODE = @BRANCH_CODE;
-                  SELECT @@ROWCOUNT AS affectedRows;
-              `);
-
-              if (!resultUpdate.recordset || resultUpdate.recordset.length === 0 || resultUpdate.recordset[0].affectedRows === 0) {
-                  throw new Error(`❌ ไม่สามารถอัปเดต stock_summary ได้ โปรดตรวจสอบ DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode}, และ BRANCH_CODE: ${branch}`);
-              }
-              console.log(`Stock summary updated successfully for DI_REF: ${DI_REF}, ProductCode: ${ProductCode}, branch: ${branch} with status =`, newStatus);
-              // ******** ส่วนที่เพิ่มเข้ามา: ตรวจสอบก่อน Insert ********
-              const checkExistRequest = new sql.Request(transaction);
-              checkExistRequest.timeout = 60000;
-              checkExistRequest.input('DI_REF', sql.NVarChar, DI_REF);
-              checkExistRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
-              // ใช้เงื่อนไขที่ระบุการกระทำครั้งนี้ให้ชัดเจนที่สุด
-              checkExistRequest.input('PREPARE_QTY', sql.Decimal(18, 2), preparedQtyNumber); // จำนวนที่เตรียมครั้งนี้
-              checkExistRequest.input('PreparedBy', sql.NVarChar, PreparedBy); // User ที่เตรียมครั้งนี้
-              // อาจจะเพิ่มเงื่อนไข Timestamp ถ้าต้องการให้แคบลงมากๆ แต่ต้องระวังเรื่องความเร็ว retry
-              // checkExistRequest.input('TimestampCheck', sql.DateTime, new Date(Date.now() - 5 * 60 * 1000)); // ตัวอย่าง เช็ค 5 นาทีล่าสุด
-              const checkResult = await checkExistRequest.query(`
-                  SELECT COUNT(*) AS RecordCount
-                  FROM preparationRecords
-                  WHERE DI_REF = @DI_REF
-                    AND SKU_CODE = @SKU_CODE
-                    AND PREPARE_QTY = @PREPARE_QTY
-                    AND PreparedBy = @PreparedBy;
-                    
-              `);
-
-              const recordExists = checkResult.recordset[0].RecordCount > 0;
-
-              if (!recordExists) {
-              // 3. บันทึกข้อมูลลง preparationRecords
-              const insertRequest = new sql.Request(transaction);
-              insertRequest.timeout = 60000;
-              insertRequest.input('DI_REF', sql.NVarChar, DI_REF);
-              insertRequest.input('SKU_CODE', sql.NVarChar, ProductCode);
-              insertRequest.input('ICCAT_CODE', sql.NVarChar, ICCAT_CODE);
-              insertRequest.input('ICCAT_NAME', sql.NVarChar, ICCAT_NAME);
-              insertRequest.input('PREPARE_QTY', sql.Decimal(18, 2), preparedQtyNumber);
-              insertRequest.input('PreparedBy', sql.NVarChar, PreparedBy);
-              insertRequest.input('Timestamp', sql.DateTime, new Date());
-              insertRequest.input('Status', sql.NVarChar, newStatus);
-              insertRequest.input('DI_DATE', sql.DateTime, DI_DATE);
-              await insertRequest.query(`
-                  INSERT INTO preparationRecords
-                  (DI_REF, DI_DATE, SKU_CODE, ICCAT_CODE, ICCAT_NAME, PREPARE_QTY, PreparedBy, Timestamp, Status)
-                  VALUES (@DI_REF, @DI_DATE, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME, @PREPARE_QTY, @PreparedBy, @Timestamp, @Status)
-              `);
-              console.log(`Preparation record inserted for DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode}`);
-            } else {
-                 console.log(`Skipping insert for DI_REF: ${DI_REF}, SKU_CODE: ${ProductCode} - Record likely exists.`);
-                 // ไม่ต้องทำอะไร ปล่อยให้ Transaction ดำเนินต่อไป (ถือว่าการ Insert นี้สำเร็จไปแล้วในทางปฏิบัติ)
-            }
-            // ******** จบส่วนตรวจสอบก่อน Insert ********
-
-        } // จบ for loop updates
-
-          await transaction.commit();
-          // delete recordLocks[lockKey];
-          return res.json({ success: true, message: "Preparation saved successfully!" });
-
-      } catch (error) {
-          console.error("❌ Error saving preparation (attempt " + (retryCount + 1) + "):", error);
-          if (transaction && transaction.active) {
-              await transaction.rollback();
-          }// จบ while loop retry
-
-          if (error.code === 'EREQUEST' && error.number === 1205) {
-              // 1205 คือรหัส error สำหรับ deadlock ใน SQL Server
-              retryCount++;
-              console.log("🔄 Deadlock detected, retrying in 1 second...");
-              await new Promise(resolve => setTimeout(resolve, 1000)); // หน่วงเวลา 1 วินาที
-              transaction = null; // Reset transaction สำหรับการ retry ครั้งถัดไป
-          } else {
-              // เป็น error อื่นที่ไม่ใช่ deadlock ให้ส่ง response กลับไปเลย
-              if (!res.headersSent) {
-                  res.status(500).json({ success: false, message: "Database error", error: error.message });
-              }
-              return; // ออกจาก loop และ function
+          if (!itemProcessed) {
+              // กรณีที่ออกจาก While loop เพราะ Error อื่น หรือ Retry ครบแล้วแต่ไม่สำเร็จ
+               overallSuccess = false; // ตั้งค่าว่ามีอย่างน้อย 1 รายการที่ไม่สำเร็จ
+               // errorMessages ถูก push ไปแล้วใน catch block
           }
-      }
-  }
 
-  // หาก retry ครบจำนวนครั้งแล้วยังไม่สำเร็จ
-  if (!res.headersSent) {
-      res.status(500).json({ success: false, message: "Failed to save preparation after multiple retries due to deadlocks" });
+      } // จบ for loop updates
+
+      // --- ตอบกลับ Client หลังประมวลผลทุกรายการ ---
+      if (overallSuccess) {
+          return res.json({ success: true, message: "Preparation saved successfully!" });
+      } else {
+          // มีบางรายการไม่สำเร็จ
+          return res.status(500).json({
+              success: false,
+              message: "Some items failed to save during preparation.",
+              errors: errorMessages // ส่งรายการ Error กลับไป (ถ้าต้องการ)
+          });
+      }
+
+  } catch (poolError) {
+      // Error ตอนเชื่อมต่อ Pool หรือ Error อื่นๆ นอก Loop
+      console.error("❌ Major error in /api/save-preparation:", poolError);
+      if (!res.headersSent) {
+           res.status(500).json({ success: false, message: "A major error occurred.", error: poolError.message });
+      }
+  } finally {
+      // ไม่ต้อง close pool ที่นี่ เพราะเป็น pool กลางที่ใช้ร่วมกัน
+      console.log("Finished /api/save-preparation request.");
   }
 });
 
