@@ -34,7 +34,15 @@
   height: 20px;
   /* เพิ่ม margin หรือปรับการแสดงผลเพิ่มเติมถ้าจำเป็น */
   }
+  .disabled-link {
+        color: #858796 !important; /* สีเทาตัวอย่าง หรือสีอื่นที่ต้องการ */
+        pointer-events: none;     /* ทำให้คลิกไม่ได้ */
+        cursor: default;          /* เปลี่ยน cursor เป็นแบบปกติ */
+        text-decoration: none !important; /* ลบขีดเส้นใต้ */
+    }
+    .breadcrumb-item > .disabled-link {}
 
+    
   </style>
 </head>
 
@@ -255,14 +263,43 @@
   // ดึงค่า di_ref จาก query string แล้วแสดงใน breadcrumb
   const urlParams = new URLSearchParams(window.location.search);
   const diRef = urlParams.get("di_ref") || "ไม่ระบุ";
+  const initialCategory   = urlParams.get("category") || "all";
+  const initialSearchStatus = urlParams.get("SearchStatus");
   document.getElementById("diRefBreadcrumb").textContent = diRef;
+  const pageHeading = document.getElementById('StockHeading');
+    if (diRef !== "ไม่ระบุ") {
+    loadDetailTable(diRef, initialCategory, initialSearchStatus);
+    } else {
+     pageHeading.textContent = "ไม่พบ DI_REF";
+    }
+// ฟังก์ชันสำหรับ Disable ปุ่ม/ลิงก์นำทาง (ยกเว้นปุ่มจัดเสร็จ)
+function disableNavigationControls() {
+            // เลือกปุ่ม/ลิงก์ที่ต้องการ disable
+            const backButton = document.querySelector('.breadcrumb-item:first-child a'); // ปุ่ม กลับ ใน breadcrumb
+            const prepareListLink = document.querySelector('.breadcrumb-item:nth-child(2) a'); // ลิงก์ ใบจัดเตรียม ใน breadcrumb
 
+            // Disable ปุ่ม กลับ
+            if (backButton) {
+                backButton.removeAttribute('onclick'); // ลบ event onclick เดิม
+                backButton.removeAttribute('href');   // ลบ href
+                backButton.classList.add('disabled-link'); // เพิ่ม class เพื่อเปลี่ยนสไตล์
+                console.log("Back button disabled.");
+            }
+
+            // Disable ลิงก์ ใบจัดเตรียม
+            if (prepareListLink) {
+                prepareListLink.removeAttribute('href'); // ลบ href
+                prepareListLink.classList.add('disabled-link'); // เพิ่ม class เพื่อเปลี่ยนสไตล์
+                console.log("Prepare List link disabled.");
+            }
+        }
   // ฟังก์ชัน loadDetailTable (เหมือนเดิม)
   function loadDetailTable(diRef, category) {
     fetch("/api/get-preparation-details", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ DI_REF: diRef, Category: category })
+      body: JSON.stringify({ DI_REF: diRef, Category: category, 
+        SearchStatus: searchStatus })
     })
     .then(response => response.json())
     .then(result => {
@@ -309,6 +346,10 @@
           startProcessingBtn.disabled = true;
           startProcessingBtn.title = "ไม่มีสินค้าในสถานะที่สามารถเริ่มจัดได้";
         }
+        if (window.processingStarted) {
+             console.log("Flag เป็น true, กำลังเรียก disableNavigationControls()"); // (Optional log)
+             disableNavigationControls();
+         }
       } else {
         pageHeading.textContent = "ไม่พบข้อมูลรายละเอียด";
         startProcessingBtn.disabled = true;
@@ -546,60 +587,85 @@
     }
   
     // โหลดตารางเมื่อหน้า prepdetail โหลด
-    const params = new URLSearchParams(window.location.search);
-    const initialDI_REF = params.get('di_ref');
-    const initialCategory = params.get('category') || "all";
-    const pageHeading = document.getElementById('StockHeading');
-    if (initialDI_REF) {
-      loadDetailTable(initialDI_REF, initialCategory);
-    } else {
-      pageHeading.textContent = "ไม่พบ DI_REF";
-    }
+    // const params = new URLSearchParams(window.location.search);
+    // const initialDI_REF = params.get('di_ref');
+    // const initialCategory = params.get('category') || "all";
+    // const pageHeading = document.getElementById('StockHeading');
+    // if (initialDI_REF) {
+    //   loadDetailTable(initialDI_REF, initialCategory);
+    // } else {
+    //   pageHeading.textContent = "ไม่พบ DI_REF";
+    // }
   
     // Event listener สำหรับปุ่ม "เริ่มจัด"
     const startProcessingBtn = document.getElementById("startProcessingBtn");
     if (startProcessingBtn) {
       startProcessingBtn.addEventListener("click", function () {
         console.log("startProcessingBtn clicked");
-        if (this.disabled) {
-          console.log("ปุ่ม 'เริ่มจัด' ถูก disable อยู่");
-          return;
+        if (this.disabled) return;
+        const params = new URLSearchParams(window.location.search);
+                const currentDI_REF = params.get('di_ref');
+                const currentCategory = params.get('category') || "all";
+                const currentBranch = localStorage.getItem("branch_code");
+                const currentUsername = localStorage.getItem("username");
+
+                if (!currentDI_REF || !currentBranch || !currentUsername) { /* alert(...) */ return; }
+
+                fetch('/api/update-status', { method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  DI_REF: currentDI_REF,
+                  branch: currentBranch,
+                  category: currentCategory,
+                  username: currentUsername})
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        window.processingStarted = true; // ตั้ง flag
+                        loadDetailTable(currentDI_REF, currentCategory); // โหลดใหม่ (UI จะเปลี่ยนตาม flag)
+                        alert("เมื่อกดเริ่มจัดแล้ว หากต้องการยกเลิกต้อง กดจัดเสร็จเพื่อกลับมาแก้ไขใหม่"); // อาจจะใส่ pop-up ที่ต้องการที่นี่
+                    } else { alert("เกิดข้อผิดพลาด: " + result.message); }
+                })
+                .catch(err => { console.error("Error updating status:", err);
+                      alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ"); });
+            });
         }
         // เรียก API update-status เพื่อเปลี่ยน status เป็น 2 แล้วรีโหลดตารางใหม่
-        const params = new URLSearchParams(window.location.search);
-        const currentDI_REF = params.get('di_ref');
-        const currentCategory = params.get('category') || "all";
-        const currentBranch = localStorage.getItem("branch_code");
-        const currentUsername = localStorage.getItem("username");
+    //     const params = new URLSearchParams(window.location.search);
+    //     const currentDI_REF = params.get('di_ref');
+    //     const currentCategory = params.get('category') || "all";
+    //     const currentBranch = localStorage.getItem("branch_code");
+    //     const currentUsername = localStorage.getItem("username");
   
-        fetch('/api/update-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            DI_REF: currentDI_REF,
-            branch: currentBranch,
-            category: currentCategory,
-            username: currentUsername
-          })
-        })
-        .then(response => response.json())
-        .then(result => {
-          if (result.success) {
-            window.processingStarted = true;
-            loadDetailTable(currentDI_REF, currentCategory);
-            alert("เริ่มจัดเรียบร้อย");
-          } else {
-            alert("เกิดข้อผิดพลาด: " + result.message);
-          }
-        })
-        .catch(err => {
-          console.error("Error updating status:", err);
-          alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ");
-        });
-      });
-    } else {
-      console.log("ไม่พบ element ที่มี id 'startProcessingBtn'");
-    }
+    //     fetch('/api/update-status', {
+    //       method: 'POST',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify({
+    //         DI_REF: currentDI_REF,
+    //         branch: currentBranch,
+    //         category: currentCategory,
+    //         username: currentUsername
+    //       })
+    //     })
+    //     .then(response => response.json())
+    //     .then(result => {
+    //       if (result.success) {
+    //         window.processingStarted = true;
+    //         loadDetailTable(currentDI_REF, currentCategory);
+    //         alert("เริ่มจัดเรียบร้อย");
+    //       } else {
+    //         alert("เกิดข้อผิดพลาด: " + result.message);
+    //       }
+    //     })
+    //     .catch(err => {
+    //       console.error("Error updating status:", err);
+    //       alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ");
+    //     });
+    //   });
+    // } else {
+    //   console.log("ไม่พบ element ที่มี id 'startProcessingBtn'");
+    // }
   
     // ตัวอย่าง event listener สำหรับปุ่ม logout
     document.getElementById('logoutButton').addEventListener('click', function() {

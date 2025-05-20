@@ -264,21 +264,89 @@ const categoryMapping = {
     const currentCategoryEl = document.getElementById("currentCategory");
     const currentStatusEl = document.getElementById("currentStatus");
 
+    if (currentCategoryEl){
     let categoryText = category === "all" ? "ทั้งหมด" : (categoryMapping[category] || category);
+    // if (currentCategoryEl) currentCategoryEl.textContent = categoryText;
+    // 1. ตั้งค่า Text (เหมือนเดิม)
+    currentCategoryEl.textContent = categoryText;
+    // 2. กำหนด CSS Class สำหรับ Category Badge
+    const categoryBadgeClass = 'badge badge-secondary'; // หรือ 'badge badge-secondary'
 
-    let statusText;
-    switch (status) {
-        case "1": statusText = "รอจัด"; break;
-        case "2": statusText = "กำลังจัด"; break;
-        case "3": statusText = "จัดบางส่วน"; break;
-        case "4": statusText = "จัดเสร็จ"; break;
-        case "5": statusText = "จ่ายบางส่วน"; break;
-        case "6": statusText = "จ่ายทั้งหมด"; break;
-        default: statusText = "ทั้งหมด";
+    // 3. ลบ Badge Class เก่าๆ ออกก่อน (เผื่อไว้)
+    currentCategoryEl.classList.remove(
+        'badge', 'badge-light', 'text-dark', 'badge-secondary'
+        // เพิ่ม class อื่นๆ ที่อาจเคยใช้ ถ้ามี
+    );
+
+    // 4. เพิ่ม Badge Class ใหม่เข้าไป
+    if (categoryBadgeClass) { // ตรวจสอบเผื่อกรณีไม่ต้องการใส่ class
+        currentCategoryEl.classList.add(...categoryBadgeClass.split(' '));
     }
+}
+    // let statusText;
+    // --- ส่วนแสดง Status (แก้ไข) ---
+    if (currentStatusEl) {
+      let statusText;
+      let statusBadgeClass = 'badge badge-secondary'; // Default badge class
+    // 1. หา Text และ Badge Class จาก Status Value
+    switch (status) {
+        // case "1": statusText = "รอจัด"; break;
+        // case "2": statusText = "กำลังจัด"; break;
+        // case "3": statusText = "จัดบางส่วน"; break;
+        // case "4": statusText = "จัดเสร็จ"; break;
+        // case "5": statusText = "จ่ายบางส่วน"; break;
+        // case "6": statusText = "จ่ายทั้งหมด"; break;
+        // default: statusText = "ทั้งหมด";
+        case "1":
+                statusText = "รอจัด";
+                statusBadgeClass = 'badge badge-danger'; // สีแดง (เหมือนปุ่ม)
+                break;
+            case "2":
+                statusText = "กำลังจัด";
+                // statusBadgeClass = 'badge badge-pink'; // ถ้ามี CSS custom สำหรับ pink
+                statusBadgeClass = 'badge badge-pink'; // หรือใช้สีม่วงที่มีใน Bootstrap (ถ้ามี) หรือสีอื่น
+                // หรือใช้ btn-pink ถ้าต้องการให้เหมือนปุ่มเป๊ะๆ (แต่อาจจะต้องปรับ CSS เพิ่มเติม)
+                break;
+            case "3":
+                statusText = "จัดบางส่วน";
+                statusBadgeClass = 'badge badge-warning text-dark'; // สีเหลือง (เหมือนปุ่ม)
+                break;
+            case "4":
+                statusText = "จัดเสร็จ";
+                statusBadgeClass = 'badge badge-success'; // สีเขียว (เหมือนปุ่ม)
+                break;
+            case "5":
+                statusText = "จ่ายบางส่วน";
+                statusBadgeClass = 'badge badge-info'; // สีฟ้า (เหมือนปุ่ม)
+                break;
+            // case "6":
+            //     statusText = "จ่ายทั้งหมด"; // แก้ไขจากโค้ดเดิมที่อาจจะเป็น จ่ายทั้งหมด
+            //     statusBadgeClass = 'badge badge-primary'; // สีน้ำเงิน (เหมือนปุ่ม)
+            //     break;
+            // case "all":
+            default:
+                statusText = "";
+                statusBadgeClass = 'badge badge-secondary'; // สีเทา (เหมือนปุ่ม)
+                break;
+    }
+    // 2. ตั้งค่า Text Content (เหมือนเดิม)
+    currentStatusEl.textContent = statusText;
+    // 3. ลบ Badge Class เก่าๆ ออกก่อน
+    currentStatusEl.classList.remove(
+      'badge', 'badge-secondary', 'badge-danger', 'badge-pink', 'badge-purple',
+      'badge-warning', 'text-dark', 'badge-success', 'badge-info', 'badge-primary'
+      // เพิ่ม class อื่นๆ ที่อาจใช้ ถ้ามี
+    );
+    // // if (currentCategoryEl) currentCategoryEl.textContent = categoryText;
+    // if (currentStatusEl) currentStatusEl.textContent = statusText;
+    // 4. เพิ่ม Badge Class ใหม่เข้าไป (แยก class หลักกับสี)
+        // currentStatusEl.classList.add(...statusBadgeClass.split(' ')); // เพิ่มทุก class จาก string ทีเดียว
+        if (statusBadgeClass) {
+          currentStatusEl.classList.add(...statusBadgeClass.split(' '));
+      }
 
-    if (currentCategoryEl) currentCategoryEl.textContent = categoryText;
-    if (currentStatusEl) currentStatusEl.textContent = statusText;
+     console.log(`Updated Status Display: Text='${statusText}', Class='${currentStatusEl.className}'`); // Optional: for debugging
+    }
 }
 
 
@@ -299,13 +367,13 @@ async function loadStatusButtons() {
 
     // กำหนดรายการสถานะที่ต้องการ (สามารถปรับแก้ได้ตามความเหมาะสม)
     const statuses = [
-        { value: 'all', text: 'ทั้งหมด', class: 'btn-secondary' },
+        
         { value: '1', text: 'รอจัด', class: 'btn-danger' },
         { value: '2', text: 'กำลังจัด', class: 'btn-pink' }, // btn-pink อาจต้องมี custom CSS
         { value: '3', text: 'จัดบางส่วน', class: 'btn-warning' },
         { value: '4', text: 'จัดเสร็จ', class: 'btn-success' },
         { value: '5', text: 'จ่ายบางส่วน', class: 'btn-info' },
-        { value: '6', text: 'จ่ายทั้งหมด', class: 'btn-primary' }
+        
     ];
 
     statuses.forEach(status => {
@@ -318,7 +386,11 @@ async function loadStatusButtons() {
     });
 
     // กำหนดค่าเริ่มต้น (เลือก "ทั้งหมด" เป็นค่า default)
-    window.selectedStatus = 'all';
+     window.selectedStatus = statuses[0].value;
+    // ใส่ active ให้ปุ่มแรกรอบนึง
+    statusButtonsContainer
+    .querySelector(`.status-btn[data-status="${window.selectedStatus}"]`)
+    .classList.add('active');
 
     // เพิ่ม event listener ให้กับปุ่มสถานะทุกปุ่ม
     document.querySelectorAll('.status-btn').forEach(button => {

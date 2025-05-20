@@ -314,10 +314,13 @@
                 "render": (data, type, row,meta) => {
                   // เช็คสถานะของ row
                   if ( (row.STATUS == 1 || row.STATUS == 3 || row.STATUS == 4 || row.STATUS == 5 ) ) {
-                    return `<input type='number' class='form-control detail-input' step="0.01"
-                              oninput="if(parseFloat(this.value) > parseFloat(this.getAttribute('max'))){this.value = this.getAttribute('max');} else { this.value = fixDecimal(this.value); }" 
-                              data-doc='${row.DI_REF}' data-prod='${row.SKU_CODE}' 
-                              max='${row.REMAINING_QTY}' min='0'>`;
+                    // return `<input type='number' class='form-control detail-input' step="0.01"
+                    //           oninput="if(parseFloat(this.value) > parseFloat(this.getAttribute('max'))){this.value = this.getAttribute('max');} else { this.value = fixDecimal(this.value); }" 
+                    //           data-doc='${row.DI_REF}' data-prod='${row.SKU_CODE}' 
+                    //           max='${row.REMAINING_QTY}' min='0'>`;
+                    return `<input type="number" class="form-control detail-input" step="0.01"
+                    data-doc="${row.DI_REF}" data-prod="${row.SKU_CODE}"
+                    max="${row.REMAINING_QTY}" min="0" value="0">`;
                   } else {
                     // สำหรับ row ที่สถานะไม่ใช่ 1 หรือ 5 ให้แสดงเป็นข้อความ
                     return "";
@@ -353,7 +356,26 @@
           info: false,
           destroy: true
         });
-    
+        // เพิ่มโค้ด clamp ด้านล่าง
+        $('#detailTable tbody')
+        // เคลียร์ก่อน ถ้ามี bind เก่าเหลือ
+        .off('input clamp change clamp blur clamp')
+        // bind ให้ครอบคลุม input, change, blur
+        .on('input.clamp change.clamp blur.clamp', '.detail-input', function() {
+          const el = this;
+          const min = parseFloat(el.getAttribute('min')) || 0;
+          const max = parseFloat(el.getAttribute('max')) || 0;
+          let v = parseFloat(el.value);
+          if (isNaN(v)) {
+            el.value = min;
+          } else if (v > max) {
+            el.value = max;
+          } else if (v < min) {
+            el.value = min;
+          } else {
+            el.value = fixDecimal(el.value);
+          }
+        });
         // เพิ่ม event listener สำหรับปุ่ม "บันทึก" ในส่วน header (ถ้ามี)
         const saveHeaderBtn = document.getElementById("saveHeaderBtn");
         if (saveHeaderBtn) {

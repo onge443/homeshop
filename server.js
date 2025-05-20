@@ -545,7 +545,7 @@ app.post('/api/search-preparation', async (req, res) => {
                 FROM EXCEPT_CODE_LIST 
                 WHERE BRANCH_CODE = @Branch
               )
-              AND s2.STATUS IN (1, 3, 4, 5, 6)
+              AND s2.STATUS IN (1, 3, 4, 5)
           )
           THEN 1
           ELSE 0
@@ -580,7 +580,7 @@ app.post('/api/search-preparation', async (req, res) => {
     )
     SELECT DocumentID, DI_DATE, AR_NAME, canStart, UPDATE_DATE, RowNum
     FROM OrderedData
-    WHERE RowNum BETWEEN @rowStart AND @rowEnd
+    WHERE canStart = 1 AND RowNum BETWEEN @rowStart AND @rowEnd
     ORDER BY RowNum;
   `;
   
@@ -628,7 +628,8 @@ app.post('/api/update-status', async (req, res) => {
     requestObj.input("Username", sql.VarChar, username); // เพิ่ม username สำหรับ UPDATE_BY
 
     let selectQuery = `
-      SELECT ID, STATUS, SKU_ICDEPT, ICCAT_CODE
+      SELECT ID, DI_REF, SKU_CODE, SKU_ICDEPT, ICCAT_CODE,
+        ICCAT_NAME, DI_DATE, STATUS
       FROM stock_summary
       WHERE DI_REF = @DI_REF
         AND BRANCH_CODE = @Branch
@@ -681,17 +682,51 @@ app.post('/api/update-status', async (req, res) => {
       if (!exceptList.includes(row.SKU_ICDEPT)) {
         // อัปเดต STATUS เป็น 2 ถ้าสถานะเดิมเป็น 3 หรือ 1
         if (currentStatus === '3' || currentStatus === '1' || currentStatus === '5') {
-          const updateQuery = `
+          const updateResult = await pool.request()
+          .input("username", sql.VarChar, username)
+          .input("ID",       sql.Int,     row.ID)
+          .query(`
             UPDATE stock_summary
-            SET STATUS = 2,
-                UPDATE_DATE = GETDATE(),
-                UPDATE_BY = @username
+            SET
+              STATUS      = 2,
+              UPDATE_DATE = GETDATE(),
+              UPDATE_BY   = @username
             WHERE ID = @ID
-          `;
+          `);
+          if (updateResult.rowsAffected[0] > 0) {
           await pool.request()
-            .input("username", sql.VarChar, username)
-            .input("ID", sql.Int, row.ID)
-            .query(updateQuery);
+        .input("DI_REF",     sql.VarChar,  row.DI_REF)
+        .input("SKU_CODE",   sql.VarChar,  row.SKU_CODE)
+        .input("ICCAT_CODE", sql.NVarChar, row.ICCAT_CODE)
+        .input("ICCAT_NAME", sql.NVarChar, row.ICCAT_NAME)
+        .input("PreparedBy", sql.VarChar,  username)
+        .input("Timestamp",  sql.DateTime, new Date())
+        .input("Status",     sql.Int,      2)
+        .input("DI_DATE",    sql.DateTime, row.DI_DATE)
+        .query(`
+          IF EXISTS (
+            SELECT 1
+            FROM PreparationRecords
+            WHERE DI_REF   = @DI_REF
+              AND SKU_CODE = @SKU_CODE
+          )
+            UPDATE PreparationRecords
+            SET
+              Status      = @Status,
+              update_date = GETDATE(),
+              updated_by  = @PreparedBy
+            WHERE
+              DI_REF   = @DI_REF
+              AND SKU_CODE = @SKU_CODE;
+          ELSE
+            INSERT INTO PreparationRecords
+              (DI_REF, SKU_CODE, ICCAT_CODE, ICCAT_NAME,
+               PREPARE_QTY, PreparedBy, Timestamp, Status, DI_DATE)
+            VALUES
+              (@DI_REF, @SKU_CODE, @ICCAT_CODE, @ICCAT_NAME,
+               0,        @PreparedBy, @Timestamp, @Status, @DI_DATE);
+        `);
+          }
           updatedCount++;
           redirectFlag = true;
         }
@@ -818,7 +853,7 @@ app.post('/api/update-status', async (req, res) => {
 
   app.post('/api/get-preparation-details', async (req, res) => {
     try {
-      const { DI_REF, Category } = req.body;
+      const { DI_REF, Category, SearchStatus } = req.body;
       if (!DI_REF) {
         return res.status(400).json({ success: false, message: 'DI_REF is required' });
       }
@@ -842,6 +877,10 @@ app.post('/api/update-status', async (req, res) => {
         FROM Stock_Summary
 		    Where SKU_ICDEPT not in(select SKU_ICDEPT from EXCEPT_CODE_LIST where BRANCH_CODE='HS54') 
         AND DI_REF = @DI_REF
+      ${SearchStatus 
+         ? `AND STATUS = @SearchStatus` 
+         : `AND STATUS <> 6`          // ถ้าไม่มีพารามิเตอร์ ก็ยังปัด 6 ทิ้ง
+      }
       `;
         if (Category != 'all') {
           // หาก Category เป็น 'K', 'R' หรือ 'A' ให้เพิ่มเงื่อนไขเฉพาะ
@@ -863,14 +902,20 @@ app.post('/api/update-status', async (req, res) => {
           
            query1 += ` AND SUBSTRING(ICCAT_CODE, 1, 1) in ('A','K','R') `;
         }
-        const requestObj1 = pool.request().input("DI_REF", sql.VarChar, DI_REF);
+        // const requestObj1 = pool.request().input("DI_REF", sql.VarChar, DI_REF);
+        const requestObj1 = pool.request()
+        .input("DI_REF",          sql.VarChar, DI_REF);
+        if (SearchStatus) {
+        requestObj1.input("SearchStatus", sql.Int, parseInt(SearchStatus,10));
+        }
         const result1 = await requestObj1.query(query1);
         const records1 = result1.recordset;
       //  if (Category && Category !== "all" && Category !== 'K' && Category !== 'R' && Category !== 'A') {
       //    requestObj.input("Category", sql.NVarChar, Category);
       //  }
       // Query ที่ 2: ดึงข้อมูลตาม DI_REF และ ICCAT_CODE = 'รด1' (ไม่สนใจ Category)
-        const query2 = `
+        // const query2 = `
+        let query2 = `
         SELECT
           DI_REF,
           DI_DATE,
@@ -889,8 +934,17 @@ app.post('/api/update-status', async (req, res) => {
         Where SKU_ICDEPT not in(select SKU_ICDEPT from EXCEPT_CODE_LIST where BRANCH_CODE='HS54')
         AND DI_REF = @DI_REF
         AND ICCAT_CODE = 'รด1'
+        ${SearchStatus
+          ? `AND STATUS = @SearchStatus`
+          : `AND STATUS <> 6`
+          }
       `;
-        const requestObj2 = pool.request().input("DI_REF", sql.VarChar, DI_REF);
+        // const requestObj2 = pool.request().input("DI_REF", sql.VarChar, DI_REF);
+        const requestObj2 = pool.request()
+        .input("DI_REF",          sql.VarChar, DI_REF);
+        if (SearchStatus) {
+          requestObj2.input("SearchStatus", sql.Int, parseInt(SearchStatus,10));
+          }
         const result2 = await requestObj2.query(query2);
         const records2 = result2.recordset; 
         // รวมผลลัพธ์จากทั้งสอง Query เข้าด้วยกัน
